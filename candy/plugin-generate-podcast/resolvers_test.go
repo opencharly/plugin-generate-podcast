@@ -393,10 +393,26 @@ func TestResolveChangelogWindowSpecAndRefusals(t *testing.T) {
 	if _, err := ParseSpec("file"); err == nil {
 		t.Error("expected an error for a spec with no ref")
 	}
-	specA, _ := ParseSpec("file:alpha@HEAD:src/a.go")
-	specB, _ := ParseSpec("glob:alpha@HEAD:src/a.go")
-	if _, err := Resolve([]Spec{specA, specB}, Deps{Root: root}); err == nil {
-		t.Error("expected an error when two specs produce the same source id")
+	// A GENUINE collision, in a tree where the first resolution SUCCEEDS: `file` and `glob` prefix their
+	// ids, so only two specs of the SAME resolver can collide. Fails if the duplicate check is removed
+	// (measured -- see the PR body), and fails for the WRONG reason under the earlier version of this
+	// assertion, which paired a file spec with a glob spec over a path the fixture did not hold: the
+	// missing-file error fired first and the collision branch never ran (R7, validator round 4).
+	root2 := resolverRoot(t)
+	dupA, err := ParseSpec("file:alpha@HEAD:README.md")
+	if err != nil {
+		t.Fatalf("ParseSpec: %v", err)
+	}
+	dupB, err := ParseSpec("file:alpha@HEAD:README.md")
+	if err != nil {
+		t.Fatalf("ParseSpec: %v", err)
+	}
+	_, err = Resolve([]Spec{dupA, dupB}, Deps{Root: root2})
+	if err == nil {
+		t.Fatal("expected an error when two specs produce the same source id")
+	}
+	if !strings.Contains(err.Error(), "produced by both") {
+		t.Errorf("the refusal must name the collision, got %v", err)
 	}
 	// ... and a bundle assembled from explicit sources counts the repos it reaches rather than claiming
 	// to have scanned a tree it never walked
