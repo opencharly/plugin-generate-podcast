@@ -1,7 +1,8 @@
 # Root project manifest for the plugin repo.
 #
-# `base:` takes a BARE box name from this project's FLAT namespace, so the cachyos box must be
-# discoverable flat -- while the builders that box references are NAMESPACED (`arch.arch-builder`), so
+# `base:` takes a NAMESPACE-QUALIFIED box name here (`cachyos.cachyos`, resolved through the `cachyos:`
+# import below). MEASURED: a bare short name fails (`short-name "cachyos" did not resolve`), and a
+# `@github...` ref fails (`invalid base image specification`); a fully-qualified registry ref also works -- while the builders that box references are NAMESPACED (`arch.arch-builder`), so
 # the `arch` namespace must exist too. Both, or neither works. See opencharly/marketplace#433.
 # A STANDALONE project needs its OWN defaults: an umbrella box omits `build:` precisely because the
 # umbrella supplies it, and `charly box validate` does NOT catch the omission (it never resolves the
@@ -68,7 +69,7 @@ check-desk-schema-pod:
               exit_status: 0
               command: cd ${HOME}/.local/share/desk-schema && cue vet ./...
             - check: exactly one package across the schema directory (CUE allows no more)
-              id: desk-schema-one-package
+              id: desk-schema-single-package
               context: [runtime]
               exit_status: 0
               command: test "$(grep -h '^package ' ${HOME}/.local/share/desk-schema/*.cue | sort -u | wc -l)" -eq 1
