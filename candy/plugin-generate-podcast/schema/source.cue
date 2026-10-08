@@ -24,6 +24,10 @@ package podcast
 	generated_at!:       string
 	repos_scanned!:      int & >=0
 	repos_with_entries!: int & >=0
-	entries!:            [...#Source] & [_, ...] // at least one, or the run is refused (§5.4)
+	entries!:            [...#Source] // the ELEMENT type survives generation here too
+	_min:                len(entries) >= 1 // at least one source, or the run is refused (§5.4)
+	// MEASURED: `& [_, ...]` satisfies "at least one" but INLINES an anonymous struct at this field,
+	// so Go callers cannot pass []params.Source -- the same pitfall as the segments count. Length
+	// constraints belong in hidden len() fields.
 	tag_gaps!:           [...#TagGap]
 }

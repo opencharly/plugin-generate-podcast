@@ -64,28 +64,11 @@ type SourceBundle struct {
 
 	Repos_with_entries int64 `json:"repos_with_entries"`
 
-	Entries []struct {
-		Id string `json:"id"`
+	Entries []Source `json:"entries"`
 
-		Resolver Resolver `json:"resolver"`
-
-		Ref string `json:"ref"`
-
-		Digest string `json:"digest"`
-
-		Bytes int64 `json:"bytes"`
-
-		Repo string `json:"repo,omitempty"`
-
-		Calver string `json:"calver,omitempty"`
-
-		Path string `json:"path,omitempty"`
-
-		Title string `json:"title,omitempty"`
-
-		Body string `json:"body,omitempty"`
-	} `json:"entries"`
-
+	// MEASURED: `& [_, ...]` satisfies "at least one" but INLINES an anonymous struct at this field,
+	// so Go callers cannot pass []params.Source -- the same pitfall as the segments count. Length
+	// constraints belong in hidden len() fields.
 	Tag_gaps []TagGap `json:"tag_gaps"`
 }
 
