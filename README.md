@@ -15,4 +15,5 @@ episode cannot be constructed and nothing is hand-parsed.
 ## Status
 
 Foundations landed first, by design: the schemas, their two-arm fixture, the generated Go types, and the
-reproducibility gate. The provider, its leaves, and the skill follow in the same line of work.
+reproducibility gate. The provider (`plugin.go`), its command face (`cli.go`) and `cmd/serve/` are in
+place, and the disposable R10 bed gates the schemas; the remaining resolver leaves and the skill follow.

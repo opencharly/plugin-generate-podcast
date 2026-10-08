@@ -13,7 +13,8 @@ plugin-generate-podcast:
         # `candy:` field (a box with a base), an external_builder:, OR a `plugin:` block. For a plugin
         # repo the `plugin:` block IS that surface, so this candy cannot exist without it -- which means
         # the block and the code that serves its word land in the SAME change, never the declaration
-        # first. `cmd/serve` is therefore owed before this increment can land (see AGENTS.md).
+        # first. The provider and its command face (`plugin.go`, `cli.go`, `cmd/serve/`) ship in this same
+            # increment; the remaining leaves grow from here.
         plugin:
             providers: [command:generate-podcast]
             source: github.com/opencharly/plugin-generate-podcast/candy/plugin-generate-podcast
