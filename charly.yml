@@ -32,7 +32,7 @@ defaults:
     #                            matters, no network resource is involved, and the probe's failure is the
     #                            expected outcome on any host without a local registry. It is a probe cost,
     #                            not a defect in the artifact; the alternative value breaks the deploy.
-    registry: localhost
+    registry: ghcr.io/opencharly
     tag: auto
     build:
         - rpm
