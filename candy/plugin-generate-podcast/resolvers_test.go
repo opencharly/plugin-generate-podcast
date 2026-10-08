@@ -459,3 +459,23 @@ func TestResolveDocRefusesPlaintextHTTP(t *testing.T) {
 		t.Errorf("the refusal should point at https://, got %v", err)
 	}
 }
+
+// The ref-splitting contract, pinned: `provenance:body`, a bare path, and a URL kept whole. Fails
+// without the guard -- the previous "left half contains ://" test split a bare-scheme URL at its
+// scheme colon, which the comment nonetheless claimed it kept whole (R1, validator round 2).
+func TestSplitRefContract(t *testing.T) {
+	cases := []struct{ ref, prov, body string }{
+		{"alpha@HEAD:src/a.go", "alpha@HEAD", "src/a.go"},
+		{"DESIGN.md", "", "DESIGN.md"},
+		{"https://example.com/x", "", "https://example.com/x"},
+		{"https://example.com:8443/x", "", "https://example.com:8443/x"},
+		{"file:///tmp/x.md", "", "file:///tmp/x.md"},
+		{"news-podcast:episodes/2026-10-01-prior.md", "news-podcast", "episodes/2026-10-01-prior.md"},
+	}
+	for _, c := range cases {
+		prov, body := splitRef(c.ref)
+		if prov != c.prov || body != c.body {
+			t.Errorf("splitRef(%q) = (%q, %q), want (%q, %q)", c.ref, prov, body, c.prov, c.body)
+		}
+	}
+}

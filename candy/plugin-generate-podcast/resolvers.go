@@ -189,11 +189,33 @@ func newSource(r params.Resolver, id, ref, repo, p string, body []byte) params.S
 
 // splitRef splits `provenance:body`. A ref with no colon is a bare path, and a URL is left whole (the
 // `://` guard), so `doc:https://example.com/x` keeps its scheme.
+// splitRef splits the `provenance:body` form (`repo@ref:path`) used by `file`, `glob`, `git-log` and
+// `episode`. A ref with no colon is a bare path, returned whole.
+//
+// A URL ref is ALSO returned whole, and that guard is explicit (`isURLRef`) rather than a "does the
+// left half contain `://`" test: that test fires only when `://` precedes the LAST colon, so a
+// bare-scheme URL like `https://example.com/x` would split into ("https", "//example.com/x") — the
+// scheme colon mistaken for the separator. No caller passes a URL here today (`resolveDoc` switches on
+// the ref's prefix itself, so `doc:https://…` never reaches this function), and the guard is what keeps
+// that true if one ever does; `TestSplitRefContract` pins all three shapes.
 func splitRef(ref string) (prov, body string) {
-	if i := strings.LastIndex(ref, ":"); i > 0 && !strings.Contains(ref[:i], "://") {
+	if isURLRef(ref) {
+		return "", ref
+	}
+	if i := strings.LastIndex(ref, ":"); i > 0 {
 		return ref[:i], ref[i+1:]
 	}
 	return "", ref
+}
+
+// isURLRef reports whether a ref names a URL rather than a `provenance:path` pair.
+func isURLRef(ref string) bool {
+	for _, scheme := range []string{"http://", "https://", "file://"} {
+		if strings.HasPrefix(ref, scheme) {
+			return true
+		}
+	}
+	return false
 }
 
 // splitProvenance splits `repo@ref` into its two halves; either may be empty.
