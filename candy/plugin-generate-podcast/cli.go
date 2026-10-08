@@ -31,7 +31,7 @@ it resolves the named refs instead; the resolver words are the schema's #Resolve
   git-log          repo@<range>:path              commits and their messages
   issues           org/repo?state=&label=&q=&limit=       a GitHub issue query
   prs              org/repo?merged-since=YYYY-MM-DD&label=&path=&limit=   a merged-PR query, body + diffstat
-  doc              file://PATH | https://URL | pdf:PATH | PATH            extracted text
+  doc              file://PATH | https://URL | pdf:PATH | PATH            extracted text (plaintext http:// is refused)
   doctrine         profile:org-voice | profile:org-rules                  a named file set
   episode          news-podcast:episodes/<slug>.md                        a prior episode
 

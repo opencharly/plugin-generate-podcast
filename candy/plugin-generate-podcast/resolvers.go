@@ -69,7 +69,7 @@ func (d Deps) get(rawurl string) ([]byte, int, error) {
 	if d.Get != nil {
 		return d.Get(rawurl)
 	}
-	return httpGet(rawurl)
+	return httpGet(rawurl, d.apiBase())
 }
 
 func (d Deps) apiBase() string {
@@ -538,9 +538,10 @@ func resolvePRs(s Spec, d Deps, b *params.SourceBundle) error {
 	return nil
 }
 
-// resolveDoc — ref `file://<path>`, `https://…`, `http://…`, `pdf:<path>` or a bare path. Extracted
-// text, one document. A PDF is extracted with `pdftotext` when it is on PATH and refused with a named
-// reason when it is not — never silently treated as text.
+// resolveDoc — ref `file://<path>`, `https://<url>`, `pdf:<path>` or a bare path. Extracted text, one
+// document. A PDF is extracted with `pdftotext` when it is on PATH and refused with a named reason when
+// it is not — never silently treated as text. Plaintext `http://` is REFUSED rather than fetched: an
+// operator-chosen URL over an unauthenticated transport is not a document fetch worth having.
 func resolveDoc(s Spec, d Deps, b *params.SourceBundle) error {
 	ref := s.Ref
 	var (
@@ -552,7 +553,9 @@ func resolveDoc(s Spec, d Deps, b *params.SourceBundle) error {
 	case strings.HasPrefix(ref, "file://"):
 		pth = strings.TrimPrefix(ref, "file://")
 		body, err = readSource("doc", pth)
-	case strings.HasPrefix(ref, "http://"), strings.HasPrefix(ref, "https://"):
+	case strings.HasPrefix(ref, "http://"):
+		err = errors.New("doc: plaintext http:// is refused -- use https:// (or file://)")
+	case strings.HasPrefix(ref, "https://"):
 		var status int
 		body, status, err = d.get(ref)
 		switch {
@@ -766,16 +769,20 @@ func gitRun(dir string, args ...string) ([]byte, error) {
 	return out, nil
 }
 
-// httpGet is the default HTTP boundary: a live fetch, carrying GITHUB_TOKEN when the environment holds
-// one. It never fabricates a response.
-func httpGet(rawurl string) ([]byte, int, error) {
+// httpGet is the default HTTP boundary: a live fetch, carrying the operator's credential ONLY to the
+// GitHub API base. SCOPING THE TOKEN MATTERS: `Deps.get` also serves `resolveDoc`'s arbitrary-URL
+// branch, so an unscoped `Authorization` header would ship `GITHUB_TOKEN` to whatever host a
+// `doc:https://…` ref named — exfiltration by a ref an operator (or a generated profile) can author.
+// Measured defect (T3 block on PR #5): the first revision attached the credential unconditionally.
+// It never fabricates a response.
+func httpGet(rawurl, apiBase string) ([]byte, int, error) {
 	req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 	if err != nil {
 		return nil, 0, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "charly-generate-podcast")
-	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
+	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" && sameHost(rawurl, apiBase) {
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -790,4 +797,18 @@ func httpGet(rawurl string) ([]byte, int, error) {
 		return nil, resp.StatusCode, err
 	}
 	return body, resp.StatusCode, nil
+}
+
+// sameHost reports whether two URLs address the SAME host — the credential-scoping predicate. An
+// unparseable URL on either side answers false: a credential is never sent on a guess.
+func sameHost(rawurl, apiBase string) bool {
+	u, err := url.Parse(rawurl)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	base, err := url.Parse(apiBase)
+	if err != nil || base.Host == "" {
+		return false
+	}
+	return strings.EqualFold(u.Host, base.Host)
 }

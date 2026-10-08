@@ -43,16 +43,16 @@ func (c Cue) String() string {
 
 // Emit validates what the generated TYPE cannot express and returns the markdown plus the cue lines.
 //
-// What is deliberately NOT re-checked here: the required fields, the beats and the segment FLOOR are the
-// SCHEMA's job, enforced by `cue vet` before this ever runs — re-implementing them in Go would be a
-// hand-transcribed second copy of the schema. What IS here is the type-inexpressible remainder, and it
-// fails loudly rather than emitting a plausible-looking empty script:
+// The BOUNDS are re-checked here, and deliberately: the schema's list type enforces the floor of three
+// for anything that went through `cue vet`, but a Go or CLI caller never passes through `cue vet`, and
+// `[]Segment` accepts 0, 2 or 60 elements just as happily. Re-checking them here is not a second copy of
+// the schema — the schema stays the authority for the STRUCTURE (the four beats, the required fields,
+// the pinch, the cast shape), and these two numbers are the range a Go caller can otherwise walk past.
+// A maximum cannot be expressed in the schema's list type without inlining an anonymous element type
+// into the generated Go, so the ceiling is only here; both bounds come from minSegments/maxSegments.
 //
-//   - the cast roles must be named and present in the episode's cast;
-//   - the segment CEILING of five. The schema enforces the floor of three in its list type
-//     (`[#Segment, #Segment, #Segment, ...#Segment]`); a maximum cannot be expressed that way without
-//     inlining an anonymous element type into the generated Go, so the ceiling is guarded here. The Go
-//     type `[]Segment` accepts 6, 60 or 0 elements, and a Go caller never passes through `cue vet`.
+// What is NOT re-checked here: the beats and the required fields — re-implementing those in Go would be
+// a hand-transcribed second copy of the schema.
 func Emit(ep params.Episode, cast Cast) (string, []Cue, error) {
 	if cast.Enthusiast == "" || cast.Anchor == "" {
 		return "", nil, errors.New("emit: both cast roles must be named")

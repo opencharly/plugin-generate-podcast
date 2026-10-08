@@ -179,17 +179,22 @@ func TestResolveDoc(t *testing.T) {
 	if b.Entries[0].Path != filepath.Join(root, "notes.md") {
 		t.Errorf("file:// path was not kept: %+v", b.Entries[0])
 	}
-	// http is exercised against a REAL local server, never a canned body
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("# fetched\n\nthe live document\n"))
-	}))
-	defer srv.Close()
-	b, err = resolveOne(t, root, "doc:"+srv.URL+"/doc.md", Deps{})
+	// https goes through the INJECTED seam (Deps.Get) so the adapter's status/digest handling is what
+	// is under test; the LIVE https path is the R10 bed's job, against the real GitHub API.
+	b, err = resolveOne(t, root, "doc:https://example.invalid/doc.md", Deps{
+		Get: func(string) ([]byte, int, error) { return []byte("# fetched\n\nthe live document\n"), 200, nil },
+	})
 	if err != nil {
-		t.Fatalf("doc resolver (http): %v", err)
+		t.Fatalf("doc resolver (https): %v", err)
 	}
 	if b.Entries[0].Title != "fetched" {
 		t.Errorf("fetched document is wrong: %+v", b.Entries[0])
+	}
+	// a non-200 answer is a named refusal, not a document
+	if _, err := resolveOne(t, root, "doc:https://example.invalid/x", Deps{
+		Get: func(string) ([]byte, int, error) { return nil, 403, nil },
+	}); err == nil {
+		t.Error("expected a refusal for a 403 document fetch")
 	}
 	// pdf: names the missing prerequisite instead of degrading into text
 	if _, err := resolveOne(t, root, "doc:pdf:manual.pdf", Deps{}); err == nil {
@@ -407,5 +412,50 @@ func TestResolveChangelogWindowSpecAndRefusals(t *testing.T) {
 	}
 	if _, err := Resolve(nil, Deps{Root: root}); err == nil {
 		t.Error("expected the source-free refusal")
+	}
+}
+
+// The credential is scoped to the GitHub API base. Fails without the fix (T3 block on the first
+// revision): an unscoped Authorization header shipped GITHUB_TOKEN to whatever host a
+// `doc:https://…` ref named -- exfiltration by an authored ref. Both arms run against REAL local
+// servers, so the assertion reads the bytes that would have left the process.
+func TestHTTPSendsTheCredentialOnlyToTheAPIHost(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "ghp_secret_must_not_leave_github")
+	seen := make(chan string, 2)
+	echo := func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.Header.Get("Authorization")
+		_, _ = w.Write([]byte("# a document\n"))
+	}
+	api := httptest.NewServer(http.HandlerFunc(echo))
+	defer api.Close()
+	other := httptest.NewServer(http.HandlerFunc(echo))
+	defer other.Close()
+
+	body, status, err := httpGet(api.URL+"/repos/o/r/issues", api.URL)
+	if err != nil || status != 200 || len(body) == 0 {
+		t.Fatalf("api fetch: status=%d err=%v", status, err)
+	}
+	if got := <-seen; got != "Bearer ghp_secret_must_not_leave_github" {
+		t.Errorf("the API host did not receive the credential: %q", got)
+	}
+	if _, _, err := httpGet(other.URL+"/x", api.URL); err != nil {
+		t.Fatalf("doc fetch: %v", err)
+	}
+	if got := <-seen; got != "" {
+		t.Errorf("the credential was sent to a non-API host: %q", got)
+	}
+	// a URL that cannot be parsed is never credentialed either
+	if sameHost("://nonsense", api.URL) || sameHost(api.URL, "://nonsense") {
+		t.Error("sameHost answered true for an unparseable URL")
+	}
+}
+
+// Plaintext http:// is refused outright rather than fetched, and the refusal names the reason.
+func TestResolveDocRefusesPlaintextHTTP(t *testing.T) {
+	root := resolverRoot(t)
+	if _, err := resolveOne(t, root, "doc:http://example.invalid/doc.md", Deps{}); err == nil {
+		t.Fatal("expected a refusal for a plaintext http:// document")
+	} else if !strings.Contains(err.Error(), "https://") {
+		t.Errorf("the refusal should point at https://, got %v", err)
 	}
 }
