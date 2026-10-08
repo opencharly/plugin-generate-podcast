@@ -46,8 +46,10 @@ func ParseSpec(s string) (Spec, error) {
 }
 
 // Deps is everything the resolvers take from the world, injected so each adapter is testable and none
-// reaches for a global. `Git` and `Get` are the two boundary crossings: an adapter runs against the real
-// thing or fails with a named reason (R7a) — it never answers from a canned fixture.
+// reaches for a global. `Git` and `Get` are the two boundary crossings, and their DEFAULTS are the real
+// thing (`gitRun`, `httpGet`): an adapter runs against the live service or fails with a named reason
+// (R7a) and never invents an answer. Setting them is a CALLER's seam -- the unit tests point them at a
+// local server or an injected result -- never a fallback the adapter chooses for itself.
 type Deps struct {
 	Root    string              // the project/umbrella checkout the refs resolve against
 	Cutoff  string              // CalVer floor, recorded in the bundle
@@ -170,8 +172,10 @@ func Resolve(specs []Spec, d Deps) (params.SourceBundle, error) {
 	return b, nil
 }
 
-// newSource is the ONE place a digest, a byte count and a title are computed, so every adapter produces
-// a comparable receipt (R3: `digest` is mandatory, and it is the same digest everywhere).
+// newSource is the ONE place a digest and a byte count are computed, so every adapter produces a
+// comparable receipt (R3: `digest` is mandatory, and it is the same digest everywhere). It also sets a
+// DEFAULT title (the body's first heading); an adapter that knows a better name -- a commit subject, an
+// issue or PR title, the ref itself for a URL document -- overrides it on the returned value.
 func newSource(r params.Resolver, id, ref, repo, p string, body []byte) params.Source {
 	sum := sha256.Sum256(body)
 	return params.Source{
@@ -187,8 +191,6 @@ func newSource(r params.Resolver, id, ref, repo, p string, body []byte) params.S
 	}
 }
 
-// splitRef splits `provenance:body`. A ref with no colon is a bare path, and a URL is left whole (the
-// `://` guard), so `doc:https://example.com/x` keeps its scheme.
 // splitRef splits the `provenance:body` form (`repo@ref:path`) used by `file`, `glob`, `git-log` and
 // `episode`. A ref with no colon is a bare path, returned whole.
 //

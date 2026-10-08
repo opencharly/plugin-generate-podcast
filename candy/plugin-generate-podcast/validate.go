@@ -92,10 +92,12 @@ func validateCoverage(out params.TypedOutputs, b params.SourceBundle, sel *Selec
 	return nil
 }
 
-// ValidateEpisodeInputs is the RENDERER's input gate (S3): the emitter refuses to produce cue lines from
-// an episode whose citations do not resolve in the bundle it was written against. The renderer consumes
-// the cue lines this emitter produces, so validating here is what removes the class of defect where a
-// synthesiser receives a script quoting sources nobody can find.
+// ValidateEpisodeInputs is the RENDERER's input gate (S3), and the `emit` path runs it whenever it is
+// given the bundle (`--bundle`): that path then refuses to produce cue lines from an episode whose
+// citations do not resolve in the bundle it was written against. The renderer consumes the cue lines this
+// emitter produces, so validating there is what removes the class of defect where a synthesiser receives
+// a script quoting sources nobody can find. `Emit` itself stays bundle-free -- it is the pure
+// episode-to-cues function -- so a caller that omits `--bundle` gets the structural checks only.
 func ValidateEpisodeInputs(ep params.Episode, b params.SourceBundle) error {
 	if len(b.Entries) == 0 {
 		return errors.New("emit: the bundle holds no sources; there is nothing to emit against (§5.4)")
