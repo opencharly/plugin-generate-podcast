@@ -46,7 +46,7 @@ desk-schema:
         base: cachyos.cachyos
         candy:
             - cue
-            - plugin-generate-podcast
+            - desk-plugin-consumer
             # A CHECK BED needs the pod to STAY UP for the live checks: without a long-running
             # service the container exits and `start` fails (measured: start FAIL, exit 1, while
             # check-image/deploy-add/config had all passed). The org's keepalive candy is for this.
@@ -85,6 +85,35 @@ check-desk-schema-pod:
                 cd "$d"
                 if cue vet ./... >/dev/null 2>&1; then
                   echo "the schema ACCEPTED an episode with no honest_limit -- it is too weak to be a gate"; exit 1
+                fi
+            - check: the SHIPPED resolver runs in the image on the fresh rebuild (this is the gate on the changed Go, not on the schema files)
+              id: desk-cli-resolve
+              context: [runtime]
+              exit_status: 0
+              run_as: "${USER}"
+              command: |
+                set -eu
+                d=/tmp/fx/alpha/CHANGELOG
+                mkdir -p "$d"
+                printf '# alpha adds a new verb\nprovider: x\nmeasured 42 repos\n' > "$d/2026.280.0704.md"
+                printf '# below the floor\n' > "$d/2026.270.0100.md"
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                test -x "$BIN"
+                "$BIN" resolve --root /tmp/fx --cutoff 2026.274 > /tmp/bundle.json
+                # the entry at or above the floor is in, the one below it is not, and the digest ships
+                grep -q 'alpha@2026.280.0704' /tmp/bundle.json
+                ! grep -q 'alpha@2026.270.0100' /tmp/bundle.json
+                grep -q '"digest"' /tmp/bundle.json
+            - check: the SHIPPED command refuses a cutoff that is not a CalVer floor (a check that can fail)
+              id: desk-cli-resolve-rejects
+              context: [runtime]
+              exit_status: 0
+              run_as: "${USER}"
+              command: |
+                set -eu
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                if "$BIN" resolve --root /tmp/fx --cutoff 2026-10-01 >/dev/null 2>&1; then
+                  echo "the resolver accepted a non-CalVer cutoff" >&2; exit 1
                 fi
             - check: the ACCEPT arm still validates (the reject arm above must not be passing for the wrong reason)
               id: desk-schema-accepts-valid

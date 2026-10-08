@@ -1,0 +1,29 @@
+desk-plugin-consumer:
+    candy:
+        description: |-
+            Composes the podcast desk's plugin and BAKES its binary into the image, so the R10 bed drives the
+            SHIPPED command on the fresh rebuild instead of only validating schema files. A separate consumer
+            is required, not stylistic: `bake_plugin:` refs are resolved as DEPENDENCY EDGES, so a candy that
+            names itself is a `circular dependency` -- measured. The org's `charly-mise-consumer` is the same
+            shape. No charly CLI is needed: `sdk.Main` passes its args to `CliMain`, so the baked binary IS
+            the command face (measured: no args -> usage, exit 2; `resolve --root ... --cutoff ...` -> the
+            bundle JSON, exit 0).
+        # `bake_plugin:` entries ARE dependency edges ("appears in both 'candy' and 'depends'" otherwise,
+        # measured), so the plugin is named ONCE -- as the bake -- and the install surface is carried by a
+        # dependency this consumer genuinely needs: cue runs the desk's schema checks.
+        candy:
+            - cue
+        bake_plugin:
+            - plugin-generate-podcast
+        plan:
+            - check: the baked plugin binary ships at the plugin dir, is executable, and prints the desk usage
+              id: desk-baked-binary
+              context: [runtime]
+              exit_status: 0
+              run_as: "${USER}"
+              command: |
+                set -eu
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                test -x "$BIN"
+                if "$BIN" >/tmp/u.txt 2>&1; then echo "no-arg invocation must not exit 0" >&2; exit 1; fi
+                grep -q 'emit' /tmp/u.txt
