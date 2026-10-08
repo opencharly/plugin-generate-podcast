@@ -39,6 +39,25 @@ for f in desk source episode manifest; do grep -v '^package ' candy/plugin-gener
 cd /tmp/cg && cue exp gengotypes .
 ```
 
+## A standalone project must declare what the umbrella supplies
+
+Measured here, each by running the gate rather than reading a doc — the failure modes are silent:
+
+- **`defaults: build:`** — every umbrella box omits it because the umbrella's `defaults:` supplies it. A box
+  copied from an umbrella example then fails `charly box build` with
+  `image <name>: build: field required (set in image, base, or defaults)`, **after `charly box validate`
+  reported OK, 0 warnings** (validate never resolves the image).
+- **`defaults: registry:` + `tag: auto`** — without them the deploy emits
+  `Image=<registry>/<box>:<deploy>-<calver>`, a REMOTE ref, while the local build tags `localhost/<box>:<tag>`.
+  The container then pulls a tag that was never pushed (`403 Forbidden`), exits 125, and systemd reaches
+  `start-limit-hit`; the only symptom `charly start` prints is `command exited 1`.
+- **`base:` takes a NAMESPACE-QUALIFIED box name** (`base: cachyos.cachyos` through the `cachyos:` import). A
+  bare short name fails with `short-name "cachyos" did not resolve`, and a `@github…` ref with
+  `invalid base image specification`; a fully-qualified registry ref also works.
+- **A bed whose box is a build-time-only install needs `check-keepalive`**, composed **by ref**
+  (`@github.com/opencharly/pod-check-keepalive:<calver>`) — a pod with no service of its own has nothing to
+  stay up for, and `start` fails on the bare candy name.
+
 ## Landing
 
 PR-only. The merge gate is the org-wide `charly/pr-validator` (required check `validate / validate`);
