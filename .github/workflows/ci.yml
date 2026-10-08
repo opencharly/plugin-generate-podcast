@@ -27,8 +27,15 @@ jobs:
       - name: Generated params are reproducible (cue:gen)
         run: |
           rm -rf /tmp/cuegenpkg && mkdir -p /tmp/cuegenpkg
-          echo 'package params' > /tmp/cuegenpkg/pipeline.cue
-          cat candy/plugin-generate-podcast/schema/desk.cue >> /tmp/cuegenpkg/pipeline.cue
+          # The ONE generation recipe: ALL FOUR schema files, one package. Two measured traps:
+          #   * only desk.cue reproduces nothing -- the committed file carries Source/SourceBundle/
+          #     Episode/RenderManifest too, so a one-file recipe cannot match it;
+          #   * each schema file opens with `package podcast` and one CUE package per directory is the
+          #     rule, so the lines are STRIPPED before concatenation (the target package is `params`).
+          echo 'package params' > /tmp/cuegenpkg/schema.cue
+          for f in desk source episode manifest; do
+            grep -v '^package ' "candy/plugin-generate-podcast/schema/$f.cue" >> /tmp/cuegenpkg/schema.cue
+          done
           cd /tmp/cuegenpkg && cue exp gengotypes .
           diff <(sed '1,1d' /tmp/cuegenpkg/cue_types_params_gen.go) \
                <(sed '1,1d' "$GITHUB_WORKSPACE/candy/plugin-generate-podcast/params/cue_types_gen.go")

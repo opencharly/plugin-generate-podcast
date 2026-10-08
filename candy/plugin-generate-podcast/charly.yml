@@ -32,8 +32,9 @@ plugin-generate-podcast:
               file:
                 file: ${CANDY_DIR}/schema/episode.cue
                 exists: true
-            - check: the schemas are valid CUE and share one package
-              id: desk-schema-vet
+            - check: the schema directory carries exactly the four expected files (a build-scope count;
+              # the real `cue vet` runs in the bed, where the CUE toolchain is in the image)
+              id: desk-schema-count
               exit_status: 0
               command: test "$(ls -1 ${CANDY_DIR}/schema/*.cue | wc -l)" -eq 4
             - check: exactly one package across the schema directory (CUE allows no more)
