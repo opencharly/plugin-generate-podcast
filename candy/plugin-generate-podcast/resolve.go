@@ -1,8 +1,6 @@
 package generatepodcast
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,19 +60,12 @@ func ResolveChangelogWindow(root, cutoff string, tags map[string][]string) (para
 			if err != nil {
 				continue
 			}
-			sum := sha256.Sum256(body)
-			b.Entries = append(b.Entries, params.Source{
-				Id:       repo + "@" + m[1],
-				Resolver: params.Resolver("changelog-window"),
-				Ref:      repo + "@" + m[1],
-				Digest:   hex.EncodeToString(sum[:]),
-				Bytes:    int64(len(body)),
-				Repo:     repo,
-				Calver:   m[1],
-				Path:     filepath.Join(repo, "CHANGELOG", f.Name()),
-				Title:    firstHeading(string(body)),
-				Body:     string(body),
-			})
+			// ONE place computes a digest/byte count/title (resolvers.go's newSource), so a
+			// changelog-window receipt and a file/glob/doc receipt are comparable by construction.
+			src := newSource("changelog-window", repo+"@"+m[1], repo+"@"+m[1], repo,
+				filepath.Join(repo, "CHANGELOG", f.Name()), body)
+			src.Calver = m[1]
+			b.Entries = append(b.Entries, src)
 			have[repo+"@"+m[1]] = true
 			n++
 		}

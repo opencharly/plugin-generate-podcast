@@ -1,7 +1,10 @@
 package podcast
 
-// a complete episode: MUST validate
-validEpisode: #Episode & {
+// An episode with only TWO segments: MUST be REJECTED. This arm exists because the previous length rule
+// was a hidden `_min: len(segments) >= 3` field, which MEASURED as inert (the comparison evaluates to the
+// boolean value false, so nothing fails) -- and no fixture arm ever exercised a LENGTH rule, so the
+// decoration survived. Everything else here is complete, so the segment count is the only failure.
+invalidTwoSegments: #Episode & {
 	front_matter: {
 		episode: "sample"
 		topic: "a topic"
@@ -31,29 +34,8 @@ validEpisode: #Episode & {
 			unlock: "an agent can now do X that it could not do before, because of s2"
 			honest_limit: "this does not establish anything about Y"
 			comic_beat: "the laugh lives here"
-		},
-		{
-			title: "s3"
-			mechanism: "what the sources say about s3"
-			receipt: "a verbatim passage from the named source"
-			receipt_source: "src-1"
-			unlock: "an agent can now do X that it could not do before, because of s3"
-			honest_limit: "this does not establish anything about Y"
-			comic_beat: "the laugh lives here"
 		}
 	]
 	pinch: {claim: "the one consequence claim", citation: "src-1"}
 	close: "point at the receipts"
-}
-
-// a complete writing-stage output: all four blocks present, one claim with its receipt: MUST validate
-validOutputs: #TypedOutputs & {
-	script: "# the episode markdown"
-	sources: [{
-		claim_id:  "c1"
-		source_id: "src-1"
-		quote:     "a verbatim passage from the named source"
-	}]
-	coverage: {selected: 4, skipped: 592, repos_scanned: 243, repos_used: 9}
-	gaps: ["what the window could not answer"]
 }

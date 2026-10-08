@@ -21,6 +21,15 @@ type Cast struct {
 	Anchor     string // speaks the receipt and the honest limit; wins every factual exchange
 }
 
+// The format's segment bounds. The FLOOR is stated twice by design -- in the schema's list type (the
+// authority for anything that went through `cue vet`) and here (the guard for a Go/CLI caller that did
+// not) -- while the ceiling can only live here; Emit's comment says why, and it is the reason this pair
+// exists as named constants rather than as literals at the comparison.
+const (
+	minSegments = 3
+	maxSegments = 5
+)
+
 // Cue is one thing the renderer says. An empty Speaker is a pause, written as a bare `--`.
 type Cue struct {
 	Speaker string
@@ -36,10 +45,16 @@ func (c Cue) String() string {
 
 // Emit validates what the generated TYPE cannot express and returns the markdown plus the cue lines.
 //
-// What is deliberately NOT re-checked here: the required fields, the beats and the 3..5 segment count are
-// the SCHEMA's job, enforced by `cue vet` before this ever runs — re-implementing them in Go would be a
-// hand-transcribed second copy of the schema. The two guards below are the type-inexpressible remainder,
-// and they fail loudly rather than emitting a plausible-looking empty script.
+// The BOUNDS are re-checked here, and deliberately: the schema's list type enforces the floor of three
+// for anything that went through `cue vet`, but a Go or CLI caller never passes through `cue vet`, and
+// `[]Segment` accepts 0, 2 or 60 elements just as happily. Re-checking them here is not a second copy of
+// the schema — the schema stays the authority for the STRUCTURE (the four beats, the required fields,
+// the pinch, the cast shape), and these two numbers are the range a Go caller can otherwise walk past.
+// A maximum cannot be expressed in the schema's list type without inlining an anonymous element type
+// into the generated Go, so the ceiling is only here; both bounds come from minSegments/maxSegments.
+//
+// What is NOT re-checked here: the beats and the required fields — re-implementing those in Go would be
+// a hand-transcribed second copy of the schema.
 func Emit(ep params.Episode, cast Cast) (string, []Cue, error) {
 	if cast.Enthusiast == "" || cast.Anchor == "" {
 		return "", nil, errors.New("emit: both cast roles must be named")
@@ -50,9 +65,9 @@ func Emit(ep params.Episode, cast Cast) (string, []Cue, error) {
 	if _, ok := ep.Front_matter.Cast[cast.Anchor]; !ok {
 		return "", nil, fmt.Errorf("emit: anchor %q is not in the episode's cast", cast.Anchor)
 	}
-	if len(ep.Segments) == 0 {
-		// #Episode declares `[_, _, _]`; Go cannot express that, so guard it here rather than emit "".
-		return "", nil, errors.New("emit: the episode has no segments")
+	if len(ep.Segments) < minSegments || len(ep.Segments) > maxSegments {
+		return "", nil, fmt.Errorf("emit: the episode has %d segments; the format allows %d..%d",
+			len(ep.Segments), minSegments, maxSegments)
 	}
 
 	var cues []Cue

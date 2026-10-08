@@ -42,3 +42,445 @@ plugin-generate-podcast:
               id: desk-schema-one-package
               exit_status: 0
               command: test "$(grep -h '^package ' ${CANDY_DIR}/schema/*.cue | sort -u | wc -l)" -eq 1
+
+generate-podcast-skill:
+    skill:
+        name: generate-podcast
+        family: tools
+        owner: plugin-generate-podcast
+        description: |-
+            The podcast desk: turn a topic plus a set of sources into a two-host discussion — a script and,
+            optionally, audio. Use when the task is to NARRATE landed change rather than make it: drafting a
+            podcast or audio-overview script, a changelog digest, release-notes narration, an "episode", or a
+            "what changed this week" story destined for opencharly/news-podcast.
+        triggers:
+            - "Drafting a podcast or a two-host audio-overview script"
+            - "A changelog digest or release-notes narration"
+            - "Writing an episode for opencharly/news-podcast"
+            - "Narrating landed change instead of making it"
+            - "Gathering and proving the sources behind an episode (resolvers, receipts, gaps)"
+        content: |
+            # generate-podcast — the podcast desk
+
+            ## Overview
+
+            The podcast desk turns a window of MERGED changes into a **NotebookLM-style two-host podcast
+            script**: the "here is what we just built, and why it matters" show for the agentic revolution.
+            Everything else in this corpus documents how to build, land and verify change. This skill is how
+            that change gets **narrated** — to the people who use charly, and to the agents who inherit it.
+
+            A script is written by an agent following this skill. The skill ships no audio, no TTS and no
+            scheduler: the artifact is a **script**, and it is the input to whatever voice the operator wants to
+            put on it.
+
+            Two jobs, in this order, always:
+
+            1. **Get the facts straight.** Every claim in the script resolves to a file, a tag, a PR number or a
+               pasted command output. A listener must be able to check the show.
+            2. **Make it land.** Funny, warm and genuinely excited — because the thing being described is
+               genuinely exciting, and a dull telling of a revolution is a small betrayal of it.
+
+            They are not in tension. The repo's own writing proves it: `GRIEVANCES.md` is deadpan and funny
+            *because* every joke is a mechanism joke. Humour that survives a fact-check is the only humour this
+            desk ships.
+
+            ## The one law
+
+            **Facts first, revolution second — and never the revolution instead of the fact.**
+
+            The failure this law exists for is the flattering segment: a change whose honest description is
+            "the retry loop now synchronizes on an event instead of sleeping", narrated as "we made agents
+            unstoppable". The first sentence is a fact a listener can verify and a story they will remember.
+            The second is a lie with a laugh track, and it makes every true claim around it cheaper.
+
+            So: state the mechanism, then say what it makes possible. Never reverse the order, and never let the
+            second sentence stand without the first.
+
+            ## The two hosts
+
+            Two voices, deliberately unequal in temperament and equal in authority. Naming the roles is what
+            makes the fact-check a *character* rather than a rule that gets skipped at the end.
+
+            | Host | Job | The failure they exist to prevent |
+            |---|---|---|
+            | **CONCH** | The enthusiast. Connects each change to what it makes newly possible. Keeps stirring. Warm, quick, happy to be amazed. | Hype with nothing under it. |
+            | **TEMPER** | The fact-anchor. Dry, sceptical, precise. Must be able to name the file, tag or PR behind every claim, and is allowed to say "that is not what the entry says". | A show that is fun and wrong. |
+
+            Rules for the pair:
+
+            - **TEMPER wins every disagreement about a fact.** It is not a bit. If TEMPER cannot cite it, the
+              line is cut.
+            - **CONCH wins every disagreement about emphasis** — which change leads the show, which gets the big
+              finish. TEMPER does not decide what matters, only what is true.
+            - **They trade; they do not lecture.** NotebookLM's format works because the two hosts interrupt,
+              finish each other's sentences and get genuinely surprised. Write interruption, not alternating
+              monologue. Short lines. A question that is really a setup. A correction that is really a punchline.
+            - **Neither host knows more than the sources.** No host may "recall" an architecture detail. If a
+              fact is not in the gathered change-set or in the normative documents, it does not go in the script.
+
+            ## The episode shape
+
+            A default 8–14 minute script (about 1,200–2,000 words), in this order. Deviate with a reason, never
+            by accident.
+
+            1. **Cold open (2–4 lines).** One concrete, surprising, TRUE image from this window's changes. Not a
+               greeting. The best cold opens are the mechanism itself — a socket "wearing a costume", a check
+               that has never failed proving nothing.
+            2. **The clock (one beat).** What window this is: the tag range, the date, and how many landings.
+               TEMPER says it flatly. This is the show's integrity statement — it tells the listener exactly what
+               was and was not covered, **including the gaps** (`references/sources.md`).
+            3. **Three to five change segments (the body).** One landing, or one tight cluster, per segment.
+               Every segment has the same four beats, in this order:
+               - **the mechanism** — what actually changed, in plain words (TEMPER can cite it);
+               - **the receipt** — the entry, tag or PR, named out loud;
+               - **the unlock** — what is newly possible that was not (CONCH's beat);
+               - **the honest limit** — what it does not do, or what is still open. Never skip this. A segment
+                 with no limit is a segment TEMPER has not finished.
+            4. **The pinch (the agentic-revolution beat).** One segment, no new changes, answering the standing
+               question: *how does this bring the agentic revolution forward?* The honest forms of that answer
+               are in `references/voice.md` — it is almost never "a new feature".
+            5. **The sign-off (2–3 lines).** Where the receipts live (the episode's `sources:` block), what is
+               next (the open work, from `TODO.md` or the issue ledger), and one line of genuine feeling.
+
+            ## Sourcing and voice — the two references
+
+            - `references/sources.md` — **how to gather the latest changes and prove them.** The exact discovery
+              commands, the `CHANGELOG/` filename filter, the tag→entry reconciliation, the merged-PR-body
+              fallback, and the `sources:` provenance block every episode carries.
+            - `references/voice.md` — **how to sound like this project.** The voice contract, the closed
+              vocabulary that keeps the script honest, the agentic-revolution beat, worked before/after
+              examples, and the anti-patterns that get a script sent back.
+
+            Read both before writing. They are not optional polish: `sources` is the fact gate, and `voice` is
+            what keeps the desk from becoming a press release.
+
+            ## Publishing
+
+            Episodes live in the dedicated **`opencharly/news-podcast`** repo — a pure content repo: no `charly.yml`, no
+            candy, no submodule gitlink. Scripts in, nothing else. The desk's *recipe* is this skill, in the `/charly-tools` family; the desk's *output* is the `news-podcast` repo. Keeping them apart is deliberate: if the
+            content repo owned the skill entity, every episode commit would churn the marketplace refs pin and
+            re-trigger the daily refresh.
+
+            ```text
+            opencharly/news-podcast/
+              README.md                            # public: what this repo is + the episode index
+              AGENTS.md                            # thin signpost → load /charly-tools:generate-podcast
+              .github/workflows/tag-on-merge.yml   # REQUIRED: CalVer tag + CHANGELOG on merge
+              CHANGELOG/                           # per-CalVer history, written by tag-on-merge
+              episodes/
+                <YYYY-MM-DD>-<slug>.md             # one file per episode
+            ```
+
+            Rules:
+
+            - **One episode, one file**, named `episodes/<YYYY-MM-DD>-<slug>.md`, where the date is the **end of
+              the covered window** in UTC. Episode filenames deliberately do NOT use CalVer: the repo's own
+              releases already mint `v<YYYY>.<DDD>.<HHMM>` at merge, and reusing that form for content would
+              collide with the tag namespace.
+            - **Every episode opens with a `sources:` provenance block** (shape in `references/sources.md`)
+              listing the exact repo@ref and `CHANGELOG/` entry behind each claim, plus a `gaps:` list for
+              anything the window could not cover. An episode without its receipts is not publishable.
+            - **PR-only, like everything else.** Load `/charly-internals:git-workflow` BEFORE any git or `gh`
+              action: branch `feat/<slug>` in a session worktree, write the whole PR body before the push, and
+              let the org's `charly/pr-validator` gate the merge. The PR body IS that repo's changelog entry.
+            - **Never quietly rewrite a published episode's facts to erase an error.** Correct it in an explicit
+              correction commit (or on the air in the next episode) and say so — the desk's whole value is that
+              its record can be trusted.
+
+            ## Cross-References
+
+            - `/charly-internals:git-workflow` — the landing mechanics for publishing an episode (load before
+              any git/`gh` action).
+            - `/charly-internals:repo-setup` — the new-repo checklist that created `opencharly/news-podcast`, the
+              required `tag-on-merge.yml` caller in particular.
+            - `/charly-internals:skills` — where guidance belongs, and why the recipe is a skill while the
+              output is a repo.
+            - `/charly-internals:marketplace` — how this skill is projected from its entity into the corpus.
+            - `/charly-internals:agents` — the delegation and ledger discipline the desk runs under.
+
+            ## When to Use This Skill
+
+            Invoke when the task is to **narrate** landed change rather than make it: drafting a podcast or
+            audio-overview script, a changelog digest, release-notes narration, an "episode", a "what changed
+            this week" story, or anything destined for `opencharly/news-podcast`. Not for writing a `CHANGELOG/` entry
+            (that is `tag-on-merge`'s output from the PR body) and not for the reference documentation site
+            (that is `/charly-build:docs`).
+        references:
+            - name: sources
+              content: |
+                  # Sources — gathering the latest changes, and proving them
+
+                  Companion reference for `/charly-tools:generate-podcast`. This is the fact gate. The desk never narrates
+                  from memory, from a title, or from a PR description. It narrates from the record, and it carries the
+                  record into the episode.
+
+                  Run these commands; do not recall them. Every volatile value — a count, a tag name, a path — is
+                  DISCOVERED at run time and never baked into the script's prose.
+
+                  ## Where the changes are
+
+                  ### 1. `CHANGELOG/` entries — the primary source
+
+                  Every repo keeps its own `CHANGELOG/`: history is repo-scoped, never centralized. One file per
+                  release, `<YYYY.DDD.HHMM>.md`, written at merge by the org's `tag-on-merge` workflow **from the PR
+                  body**. So the entry IS the PR body, and it carries the evidence: `## How tested` pasted commands
+                  and the R0–R10 compliance lines.
+
+                  ```bash
+                  # the newest entries in one repo, newest first
+                  # (CalVer sorts lexicographically = chronologically)
+                  ls -1 CHANGELOG/ | grep -E '^[0-9]{4}\.[0-9]{3}\.[0-9]{4}\.md$' | sort -r | head -20
+                  ```
+
+                  **Filter the filename.** The directory also holds non-release files — `README.md`, and in some repos
+                  historical notes such as `DOC-VERIFICATION.md` and `PLAN-mise.md` (marked `> **HISTORICAL**`). The
+                  regex above is the filter. `ls CHANGELOG/` piped straight into a loop will narrate a README.
+
+                  To find where the recent activity actually is, walk the top-level checkouts:
+
+                  ```bash
+                  # newest CHANGELOG entry per repo, across every top-level checkout
+                  for d in */; do
+                    f=$(ls -1 "$d"CHANGELOG/ 2>/dev/null | grep -E '^[0-9]{4}\.[0-9]{3}\.[0-9]{4}\.md$' | sort -r | head -1)
+                    [ -n "$f" ] && echo "$f  ${d%/}"
+                  done | sort -r | head -30
+                  ```
+
+                  ### 2. Tags — the clock
+
+                  The tag `v<YYYY>.<DDD>.<HHMM>` marks the MERGE, minted by `tag-on-merge` at the merge commit. It is
+                  how the desk dates a window.
+
+                  ```bash
+                  git for-each-ref --sort=-creatordate \
+                    --format='%(refname:short) %(creatordate:iso8601)' refs/tags | head -20
+                  ```
+
+                  CalVer is UTC: year, a zero-padded 3-digit day-of-year, hour, minute — taken from the merge commit's
+                  committer date. Two exceptions name a DIFFERENT scheme; never present them as the standard form:
+
+                  - `sdk`, `spec` and `plugin-gh` tag as Go modules: `v0.<YYYYDDD>.<HHMM>` with leading zeros stripped.
+                  - A `plugin-*` repo outside that list ALSO gets a subdirectory module tag
+                    `candy/<repo>/v0.<YYYYDDD>.<HHMM>`.
+
+                  ### 3. Reconcile tags against entries — and report the gap
+
+                  **A tag does NOT imply a `CHANGELOG/` file.** The workflow skips an empty PR body and only warns on a
+                  failed write, so both behaviours are consistent with a tag whose entry is missing. Measured on the
+                  umbrella: 321 tags against 320 CalVer files, with the two newest tags carrying no entry.
+
+                  ```bash
+                  # tags with no matching entry — the honest gap list
+                  for t in $(git tag --sort=-v:refname | head -20); do
+                    calver="${t#v}"
+                    [ -f "CHANGELOG/${calver}.md" ] || echo "GAP: $t has no CHANGELOG/${calver}.md"
+                  done
+                  ```
+
+                  A gap is **material**, not noise: a landing happened that the record does not narrate. Put it in the
+                  episode's `gaps:` block and have TEMPER say it out loud. Never invent a segment to fill it.
+
+                  ### 4. Merged PR bodies — the fallback, and the timestamp source
+
+                  Because the PR body IS the changelog, `gh` recovers what the file does not:
+
+                  ```bash
+                  gh pr list --repo opencharly/<repo> --state merged --limit 20 \
+                    --json number,title,mergedAt,mergeCommit,url
+                  gh pr view <n> --repo opencharly/<repo> --json title,body,mergedAt,mergeCommit,url
+                  ```
+
+                  This is the only source that gives `mergedAt`, and the only one that can recover a tag-without-entry
+                  landing.
+
+                  ### 5. Landing evidence inside the entries — the richest material
+
+                  An entry's `## Rulebook compliance` list is a per-rule account of what the change did, already
+                  written as *what was proven*. It is the best raw material for the "how does this advance the agentic
+                  revolution" beat, because the autonomy protocol is not aspiration — it is these rules.
+
+                  | Rule | For the microphone, in one line |
+                  |---|---|
+                  | **R1** | Every anomaly gets a root-cause analysis **before** any remediation — never "pre-existing", "out of scope" or "follow-up PR". |
+                  | **R3** | One canonical implementation per behaviour; the second copy is extracted and the copies deleted in the same cutover. |
+                  | **R4** | No sleeps, no blind retries, no suppressions, no fallback branches that hide a race. |
+                  | **R7** | Prove behaviour, not compilation — a test that cannot fail is not a test. |
+                  | **R8** | Validate emitted artifacts at the boundary where they are actually emitted. |
+                  | **R10** | Prove the final committed tree on a FRESH disposable target; there is no change-class exemption. |
+
+                  `## How tested` holds pasted commands with real output and exit codes. Quote from it — that is the
+                  difference between "we tested this" and showing the receipt.
+
+                  ### 6. Corroborating surfaces
+
+                  | Surface | What it adds |
+                  |---|---|
+                  | `.check/<bed>/<calver>/summary.yml` | the recorded result of a disposable bed run |
+                  | `marketplace/candy/charly-marketplace/charly.yml` | the refs pin list — a diff here is a consumer-side change even when no code changed |
+                  | `marketplace/DISPATCHER.md` | generated trigger→skill rows; a new row is a new routing capability |
+                  | `TODO.md` | what is still open, in producer-first order — the "what is next" beat |
+                  | `plan/issue-ledger-*.md`, `plan/progress/` | who is doing what right now, and what is blocked |
+                  | `dotgithub/.github/workflows/tag-on-merge.yml` | cite this when explaining *how* a change came to be recorded |
+
+                  ## The `sources:` block every episode carries
+
+                  Front matter, immediately after the H1. This is the show's receipts, and it is not optional.
+
+                  ```yaml
+                  ---
+                  episode: the-ratchet-turns
+                  window: v2026.279.2217..v2026.281.1028
+                  recorded: 2026-10-08
+                  runtime: ~11 min read-aloud
+                  sources:
+                    - repo: opencharly/charly
+                      ref: v2026.281.0938
+                      entry: CHANGELOG/2026.281.0938.md
+                    - repo: opencharly/marketplace
+                      ref: v2026.280.2135
+                      entry: none — tag without a CHANGELOG entry (see gaps)
+                  gaps:
+                    - v2026.280.2135 and v2026.280.1735 are tags with no CHANGELOG file
+                  ---
+                  ```
+
+                  Rules for the block:
+
+                  - **One `sources:` entry per claim-bearing ref.** `entry:` names the file, or states `none` with the
+                    reason. `ref:` is a tag or a full commit SHA — never `main`.
+                  - **`gaps:` is mandatory whenever the window is incomplete.** An empty `gaps:` list is itself a
+                    claim, and it has to be true.
+                  - **A number that is not derivable from a listed source does not ship.** Counts, percentages and
+                    "for the first time" claims all need a source line, or they get cut.
+
+                  ## Anti-patterns
+
+                  - **Narrating from a PR title.** A title is a summary of the summary. It is not evidence.
+                  - **`ls CHANGELOG/` unfiltered.** `README.md` is not a release.
+                  - **Assuming `tag ⇒ entry`.** Reconcile, then report the gap.
+                  - **Citing a moving ref.** `main` is not a source. Pin a tag or a SHA.
+                  - **Baking a volatile fact into the script's own prose.** "425 submodules" is true today and wrong
+                    next week. Read it at run time, or attribute it to its date.
+                  - **Quoting a truncated README org-map cell as a full sentence.** Several cells end mid-word.
+            - name: voice
+              content: |
+                  # Voice — how the podcast desk sounds
+
+                  Companion reference for `/charly-tools:generate-podcast`. This is the register, the vocabulary law, and the
+                  one beat the operator asked for by name.
+
+                  ## The register
+
+                  The house voice is **deadpan mechanism humour**: state the status quo exactly, refuse to strawman
+                  it, and let the absurdity be the joke. `GRIEVANCES.md` is the model — a bind-mounted docker socket is
+                  "a root shell on the host wearing a costume", inheritance "is a chain, not a set", and every honest
+                  limit is conceded in the same breath as the claim. Zero exclamation marks; the jokes are all
+                  *mechanism* jokes.
+
+                  What that means for a script:
+
+                  - **Funny comes from precision, not from adjectives.** "The isolation you believe you have is thinner
+                    than advertised" is funny. "Insanely powerful next-gen isolation" is not.
+                  - **Warm, not smug.** The audience is the people who have to maintain this tomorrow.
+                  - **Concede the limit on the air.** A self-aware show is trusted further than a confident one.
+                  - **The chocolate factory is allowed, as seasoning.** The project's own register runs on the bench,
+                    the workshop and the crème brûlée finished by "one decisive moment of trust" — use it for colour,
+                    never in place of the mechanism.
+                  - **Never mock the person who made the mistake.** The mistake is the thing worth attacking; the
+                    person is one of us.
+
+                  ## The vocabulary law
+
+                  `DESIGN.md` is **normative**, and its §2 is a *closed* term registry: "These are the only terms for
+                  these concepts in code, schema, CLI, labels and documentation", with a "Not" column listing words
+                  banned outright. A podcast is exactly where a retired word gets reintroduced to an audience that will
+                  then use it in an issue — so the desk speaks the registered terms.
+
+                  Load-bearing pairs for a script:
+
+                  | Say | Not |
+                  |---|---|
+                  | **venue** — where a deployment's commands execute | substrate |
+                  | **candy** / **box** / **stack** | layer / metalayer / image-candy / template |
+                  | **step** — one intent plus its verb | plan / feature / probe |
+                  | **plugin** — the code that serves words | provider / kit |
+                  | **deployment** — pod, vm, kubernetes, local, android | fleet / member |
+                  | **artifact** — the built form of a box, an image or a disk | — |
+                  | **document** / **node** / **identity** | workspace / entity |
+
+                  Two traps worth knowing before correcting someone on air:
+
+                  - **Repo NAMES are not vocabulary.** The org really does contain `plugin-substrate/` and
+                    `layer-check-substrate-layer/`. Those names are true. The *generic architectural noun* is still
+                    **venue** — do not call a repo name wrong.
+                  - **`GRIEVANCES.md` and `TODO.md` predate the registry.** Their YAML examples use the older
+                    vocabulary (`candy:`, `base:`, `distro:`, `plan:`). Quote their *prose*; never present their YAML as
+                    the current shape.
+
+                  ## The pinch — how a change brings the agentic revolution forward
+
+                  This is the standing ask, and the show's thesis beat. The dishonest version is easy and worthless:
+                  *"another step toward AGI"*. The honest version is specific, and the project has already written most
+                  of it down.
+
+                  The forms that are actually true, roughly in order of strength:
+
+                  1. **It made a claim checkable that was not.** The revolution is not that agents can do more. It is
+                     that what they do can be *verified* by someone who did none of the work. A new deterministic
+                     `check:` step, a fresh disposable proof, a judge with no hand in the making — each one buys trust,
+                     and trust is what the next room costs.
+                  2. **It removed a place where a failure could hide.** R1 (root-cause every anomaly before remediating)
+                     and R4 (no sleep, no blind retry, no suppression that hides a race). A hidden failure is worse than
+                     an expensive one, because it poisons every decision made from the record.
+                  3. **It widened what one recipe can become.** The same declaration pouring into one more venue is the
+                     long arc: more capability reachable by the same author, not more things to learn.
+                  4. **It made a wrong result cost only its lesson.** `disposable: true` is the ONE authorization for
+                     unattended destroy-and-rebuild. Disposability is the licence to be bold — an attempt that costs
+                     only its lesson is what lets an agent iterate fearlessly.
+                  5. **It moved a wall into ink.** A boundary that is written down — what is at stake, what may be
+                     broken, who bears the loss — is what makes a large autonomy safe to hand over. "Everything in here
+                     may be broken and rebuilt" is a sentence that has to be *true* before it is written.
+                  6. **It shortened the distance between "merged" and "trusted".** Less ceremony, fewer hand-offs,
+                     fewer human-only steps between a change and a proven one.
+                  7. **It made the record truer.** A corrected doc, a deleted alias, a killed workaround. A foundation
+                     with a crack in it is a foundation you are still building on.
+
+                  If none of these fit, **say that**. "This one is plumbing; the interesting part is that it is plumbing
+                  we no longer have to do by hand" is an honest and good segment. Reaching for a revolution that is not
+                  there is the fastest way to lose the audience.
+
+                  ## Worked before / after
+
+                  **Before** — hype with no fact under it:
+
+                  > **CONCH:** Huge news — the loader just got a massive upgrade that makes agents basically
+                  > unstoppable. This is the future of autonomy!
+
+                  **After** — mechanism, receipt, unlock, limit:
+
+                  > **TEMPER:** A plugin-versus-plugin CUE definition-name collision used to unify silently. Two plugins
+                  > declaring the same definition would quietly become one, and the second plugin's meaning would just
+                  > disappear. `CHANGELOG/…` for charly#770.
+                  > **CONCH:** *Silently* is the killer word. Nothing failed, nothing warned, and you would ship a box
+                  > that believed something untrue about itself.
+                  > **TEMPER:** Now it is a hard error, and the fix landed with the test that fails without it.
+                  > **CONCH:** And *that* is the revolution here — not that the agent can compose more plugins, but that
+                  > when it composes them wrong, something says so. That is the difference between a tool you watch and
+                  > a tool you can hand a room to.
+                  > **TEMPER:** Limit: it only catches a collision inside one load. A definition that drifts between two
+                  > loads is still on the next window's plate.
+
+                  Same excitement. One of them is checkable.
+
+                  ## Anti-patterns that get a script sent back
+
+                  - **A revolution claim with no mechanism under it.** Ground it or cut it.
+                  - **A segment with no honest limit.** TEMPER has not finished.
+                  - **A statistic with no source line.** Read it or drop it.
+                  - **A banned term.** Fix it before publishing — the script teaches vocabulary whether you meant it to
+                    or not.
+                  - **Two hosts who agree.** If TEMPER never pushes back, the show has no integrity function and is a
+                    press release with two voices.
+                  - **Invented words in a real person's mouth.** The hosts are characters; the *facts* are quotes.
+                  - **Punching down** — at whoever made the mistake, at users, at other projects. Mechanism jokes age;
+                    cruelty does not.
