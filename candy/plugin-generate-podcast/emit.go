@@ -21,6 +21,13 @@ type Cast struct {
 	Anchor     string // speaks the receipt and the honest limit; wins every factual exchange
 }
 
+// The format's segment bounds. The floor is ALSO in the schema's list type; the ceiling is only here
+// (see Emit's comment), and both are stated once so the two cannot drift into disagreeing numbers.
+const (
+	minSegments = 3
+	maxSegments = 5
+)
+
 // Cue is one thing the renderer says. An empty Speaker is a pause, written as a bare `--`.
 type Cue struct {
 	Speaker string
@@ -36,10 +43,16 @@ func (c Cue) String() string {
 
 // Emit validates what the generated TYPE cannot express and returns the markdown plus the cue lines.
 //
-// What is deliberately NOT re-checked here: the required fields, the beats and the 3..5 segment count are
-// the SCHEMA's job, enforced by `cue vet` before this ever runs — re-implementing them in Go would be a
-// hand-transcribed second copy of the schema. The two guards below are the type-inexpressible remainder,
-// and they fail loudly rather than emitting a plausible-looking empty script.
+// What is deliberately NOT re-checked here: the required fields, the beats and the segment FLOOR are the
+// SCHEMA's job, enforced by `cue vet` before this ever runs — re-implementing them in Go would be a
+// hand-transcribed second copy of the schema. What IS here is the type-inexpressible remainder, and it
+// fails loudly rather than emitting a plausible-looking empty script:
+//
+//   - the cast roles must be named and present in the episode's cast;
+//   - the segment CEILING of five. The schema enforces the floor of three in its list type
+//     (`[#Segment, #Segment, #Segment, ...#Segment]`); a maximum cannot be expressed that way without
+//     inlining an anonymous element type into the generated Go, so the ceiling is guarded here. The Go
+//     type `[]Segment` accepts 6, 60 or 0 elements, and a Go caller never passes through `cue vet`.
 func Emit(ep params.Episode, cast Cast) (string, []Cue, error) {
 	if cast.Enthusiast == "" || cast.Anchor == "" {
 		return "", nil, errors.New("emit: both cast roles must be named")
@@ -50,9 +63,9 @@ func Emit(ep params.Episode, cast Cast) (string, []Cue, error) {
 	if _, ok := ep.Front_matter.Cast[cast.Anchor]; !ok {
 		return "", nil, fmt.Errorf("emit: anchor %q is not in the episode's cast", cast.Anchor)
 	}
-	if len(ep.Segments) == 0 {
-		// #Episode declares `[_, _, _]`; Go cannot express that, so guard it here rather than emit "".
-		return "", nil, errors.New("emit: the episode has no segments")
+	if len(ep.Segments) < minSegments || len(ep.Segments) > maxSegments {
+		return "", nil, fmt.Errorf("emit: the episode has %d segments; the format allows %d..%d",
+			len(ep.Segments), minSegments, maxSegments)
 	}
 
 	var cues []Cue

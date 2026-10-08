@@ -26,4 +26,83 @@ desk-plugin-consumer:
                 BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
                 test -x "$BIN"
                 if "$BIN" >/tmp/u.txt 2>&1; then echo "no-arg invocation must not exit 0" >&2; exit 1; fi
-                grep -q 'emit' /tmp/u.txt
+                # the usage must name every leaf the provider serves, so a leaf that was wired into the
+                # package but NOT into the command face fails here rather than silently
+                for verb in emit resolve validate; do grep -q "$verb" /tmp/u.txt; done
+            # The NEW leaves, proven in the FRESHLY BUILT IMAGE at `charly check box` (box mode), so the
+            # gate on the changed Go does not depend on the deploy leg at all. The pod bed below runs the
+            # same leaves against the live venue as well (context: [runtime]).
+            - check: the file, glob, doc and doctrine leaves resolve in the image, and each source carries a digest
+              id: desk-baked-resolvers
+              context: [build]
+              exit_status: 0
+              command: |
+                set -eu
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                R=/tmp/rxc
+                rm -rf "$R"
+                mkdir -p "$R/alpha/src/deep"
+                printf '# alpha adds a new verb\nprovider: x\n' > "$R/alpha/README.md"
+                printf '// src a\npackage alpha\n' > "$R/alpha/src/a.go"
+                printf '// src b\npackage deep\n' > "$R/alpha/src/deep/b.go"
+                printf '# the desk notes\n\nwhat the desk read\n' > "$R/notes.md"
+                printf '# the rulebook\n\nthe rules\n' > "$R/AGENTS.md"
+                mkdir -p "$R/charly"
+                printf '# the core rulebook\n\ncore rules\n' > "$R/charly/AGENTS.md"
+                "$BIN" resolve --root "$R" --cutoff 2026.274 \
+                  --source 'file:alpha@HEAD:README.md' \
+                  --source 'glob:alpha@HEAD:src/**/*.go' \
+                  --source 'doc:notes.md' \
+                  --source 'doctrine:profile:org-rules' > /tmp/rxc-bundle.json
+                for id in 'file:alpha@HEAD:README.md' 'glob:alpha@HEAD:src/a.go' 'glob:alpha@HEAD:src/deep/b.go' \
+                          'doc:notes.md' 'doctrine:org-rules:AGENTS.md' 'doctrine:org-rules:charly/AGENTS.md'; do
+                  grep -q "\"id\": \"$id\"" /tmp/rxc-bundle.json
+                done
+                test "$(grep -c '"digest"' /tmp/rxc-bundle.json)" -eq 6
+                # a pattern that matches nothing, and a word outside the vocabulary, are REFUSED
+                if "$BIN" resolve --root "$R" --source 'glob:alpha@HEAD:src/**/*.rs' >/dev/null 2>&1; then
+                  echo "the glob leaf accepted a pattern that matched nothing" >&2; exit 1
+                fi
+                if "$BIN" resolve --root "$R" --source 'telepathy:x' >/dev/null 2>&1; then
+                  echo "an unknown resolver word was accepted" >&2; exit 1
+                fi
+            - check: the git-log leaf runs against a REAL repository in the image
+              id: desk-baked-git-log
+              context: [build]
+              exit_status: 0
+              command: |
+                set -eu
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                cd /tmp/rxc/alpha
+                git init -q .
+                git -c user.name=desk -c user.email=desk@example.invalid add README.md src
+                git -c user.name=desk -c user.email=desk@example.invalid commit -q -m 'adds a new verb'
+                printf '// src c\npackage alpha\n' > src/c.go
+                git -c user.name=desk -c user.email=desk@example.invalid add src/c.go
+                git -c user.name=desk -c user.email=desk@example.invalid commit -q -m 'the second landing'
+                "$BIN" resolve --root /tmp/rxc --source 'git-log:alpha@HEAD~1..HEAD:src' > /tmp/rxc-git.json
+                grep -q '"title": "the second landing"' /tmp/rxc-git.json
+                test "$(grep -c '"digest"' /tmp/rxc-git.json)" -eq 1
+                if "$BIN" resolve --root /tmp/rxc --source 'git-log:alpha@HEAD..HEAD:src' >/dev/null 2>&1; then
+                  echo "the git-log leaf accepted an empty range" >&2; exit 1
+                fi
+            - check: the validate leaf proves a verbatim quote and REFUSES a fabricated one
+              id: desk-baked-validate
+              context: [build]
+              exit_status: 0
+              command: |
+                set -eu
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                cat > /tmp/rxc-out.json <<'JSON'
+                {
+                  "script": "# the episode\nCONCH: a verb landed\n",
+                  "sources": [{"claim_id": "c1", "source_id": "file:alpha@HEAD:README.md", "quote": "alpha adds a new verb"}],
+                  "coverage": {"selected": 1, "skipped": 5, "repos_scanned": 1, "repos_used": 1},
+                  "gaps": []
+                }
+                JSON
+                "$BIN" validate --outputs /tmp/rxc-out.json --bundle /tmp/rxc-bundle.json
+                sed 's/alpha adds a new verb/we made agents unstoppable/' /tmp/rxc-out.json > /tmp/rxc-fab.json
+                if "$BIN" validate --outputs /tmp/rxc-fab.json --bundle /tmp/rxc-bundle.json >/dev/null 2>&1; then
+                  echo "validate accepted a quote that appears nowhere in the cited source" >&2; exit 1
+                fi

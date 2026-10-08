@@ -57,6 +57,14 @@ desk-schema:
         # specification`). A fully-qualified registry ref does work (`quay.io/fedora/fedora:43` in
         # pod-herdr/box/herdr/charly.yml:8).
         base: cachyos.cachyos
+        # The git-log RESOLVER's runtime dependency is ALREADY in this base -- MEASURED, not assumed:
+        # `pacman -S git` inside the build reports `warning: git-2.56.0-1.1 is up to date -- skipping`
+        # and the transaction lists only mailcap/git-lfs/github-cli as new. So NO candy is composed for
+        # git here, and the two dead ends are recorded rather than re-attempted: a box cannot carry a
+        # package section itself (`pac:`/`package:` on a `base:` node is a validate error -- #Box has no
+        # package surface), and composing `layer-gh` to get git brings git-lfs + github-cli (53 MiB) plus
+        # three pacman warnings for a binary the base already ships. The dependency is proven by USE: the
+        # bed's desk-cli-git-log step runs `git init`/`git log` in this image and fails without it.
         candy:
             - cue
             - desk-plugin-consumer
@@ -70,6 +78,17 @@ check-desk-schema-pod:
         image: desk-schema
         disposable: true
         lifecycle: dev
+        # MEASURED, and the reason a bare `charly check run check-desk-schema-pod` can die at deploy-add
+        # with `deploy-name alias tag: command exited 125`: the overlay prep resolves this deploy's SHORT
+        # image name through container.ResolveNewestLocalCalVer, and when the newest local `desk-schema`
+        # build carries the check-run's own `<deploy>-<calver>` tag rather than a plain CalVer tag, that
+        # resolution refuses -- and charly/build_overlay.go SWALLOWS the refusal (`else baseRef = base`),
+        # so the alias tag is attempted against the bare, untaggable name `desk-schema` and the operator
+        # sees only podman's exit 125. Evidence: pinning `image:` to the FULL ref of the image the run had
+        # just built made deploy-add succeed, and a plain `charly box build desk-schema` immediately
+        # before the run makes the whole bed PASS. So a standalone R10 run here needs that preceding plain
+        # build; the real fix (surface the resolution error rather than fall back to a bare ref) is charly
+        # core's.
         plan:
             - check: the four schema files ship in the image
               id: desk-schema-present
@@ -86,19 +105,26 @@ check-desk-schema-pod:
               context: [runtime]
               exit_status: 0
               command: test "$(grep -h '^package ' ${HOME}/.local/share/desk-schema/*.cue | sort -u | wc -l)" -eq 1
-            - check: the schema CONSTRAINS -- an episode missing a segment's honest_limit must be REJECTED
+            - check: the schema CONSTRAINS -- EVERY reject arm must fail, and each arm isolates ONE rule
+              # a missing honest_limit, a two-segment episode (the length FLOOR), a source-free bundle
+              # (§5.4's refusal as a schema failure) and a source-free writing-stage output. MEASURED: the
+              # floor was previously a hidden `_min: len(...) >= N` field, which is INERT, and no arm
+              # exercised a length rule -- so this loop is what makes a decoration impossible to re-ship.
               id: desk-schema-rejects-incomplete
               context: [runtime]
               exit_status: 0
               command: |
                 set -eu
-                d="$(mktemp -d)"
-                cp ${HOME}/.local/share/desk-schema/*.cue "$d/"
-                cp ${HOME}/.local/share/desk-schema/testdata/invalid.cue "$d/sample.cue"
-                cd "$d"
-                if cue vet ./... >/dev/null 2>&1; then
-                  echo "the schema ACCEPTED an episode with no honest_limit -- it is too weak to be a gate"; exit 1
-                fi
+                for arm in invalid invalid-two-segments invalid-empty-bundle invalid-outputs; do
+                  d="$(mktemp -d)"
+                  cp ${HOME}/.local/share/desk-schema/*.cue "$d/"
+                  cp ${HOME}/.local/share/desk-schema/testdata/$arm.cue "$d/sample.cue"
+                  cd "$d"
+                  if cue vet ./... >/dev/null 2>&1; then
+                    echo "the schema ACCEPTED the $arm arm -- that rule is decoration, not a gate"; exit 1
+                  fi
+                  echo "rejected: $arm"
+                done
             - check: the SHIPPED resolver runs in the image on the fresh rebuild (this is the gate on the changed Go, not on the schema files)
               id: desk-cli-resolve
               context: [runtime]
@@ -128,7 +154,8 @@ check-desk-schema-pod:
                 if "$BIN" resolve --root /tmp/fx --cutoff 2026-10-01 >/dev/null 2>&1; then
                   echo "the resolver accepted a non-CalVer cutoff" >&2; exit 1
                 fi
-            - check: the ACCEPT arm still validates (the reject arm above must not be passing for the wrong reason)
+            - check: the ACCEPT arm still validates (the reject arm above must not be passing for the wrong
+              # reason; valid.cue now also carries the #TypedOutputs accept arm)
               id: desk-schema-accepts-valid
               context: [runtime]
               exit_status: 0
@@ -138,3 +165,147 @@ check-desk-schema-pod:
                 cp ${HOME}/.local/share/desk-schema/*.cue "$d/"
                 cp ${HOME}/.local/share/desk-schema/testdata/valid.cue "$d/sample.cue"
                 cd "$d" && cue vet ./...
+            - check: the NEW resolver leaves execute live in the image on the fresh rebuild -- file, glob,
+              # doc, doctrine and episode, each driven through the SHIPPED command
+              id: desk-cli-resolvers
+              context: [runtime]
+              exit_status: 0
+              run_as: "${USER}"
+              command: |
+                set -eu
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                test -x "$BIN"
+                R=/tmp/rx
+                rm -rf "$R"
+                mkdir -p "$R/alpha/src/deep" "$R/charly" "$R/news-podcast/episodes"
+                printf '# alpha adds a new verb\nprovider: x\nmeasured 42 repos\n' > "$R/alpha/README.md"
+                printf '// src a\npackage alpha\n' > "$R/alpha/src/a.go"
+                printf '// src b\npackage deep\n' > "$R/alpha/src/deep/b.go"
+                printf '# the desk notes\n\nwhat the desk read\n' > "$R/notes.md"
+                printf '# the rulebook\n\nthe rules\n' > "$R/AGENTS.md"
+                printf '# the core rulebook\n\ncore rules\n' > "$R/charly/AGENTS.md"
+                printf '# prior episode\n\nCONCH: we shipped a thing\n' > "$R/news-podcast/episodes/2026-10-01-prior.md"
+                "$BIN" resolve --root "$R" --cutoff 2026.274 \
+                  --source 'file:alpha@HEAD:README.md' \
+                  --source 'glob:alpha@HEAD:src/**/*.go' \
+                  --source 'doc:notes.md' \
+                  --source 'doctrine:profile:org-rules' \
+                  --source 'episode:news-podcast:episodes/2026-10-01-prior.md' \
+                  > /tmp/rx-bundle.json
+                # every adapter is represented by its own id, and every source carries a digest
+                for id in 'file:alpha@HEAD:README.md' 'glob:alpha@HEAD:src/a.go' 'glob:alpha@HEAD:src/deep/b.go' \
+                          'doc:notes.md' 'doctrine:org-rules:AGENTS.md' 'doctrine:org-rules:charly/AGENTS.md' \
+                          'episode:news-podcast:episodes/2026-10-01-prior.md'; do
+                  grep -q "\"id\": \"$id\"" /tmp/rx-bundle.json
+                done
+                test "$(grep -c '"digest"' /tmp/rx-bundle.json)" -eq 7
+                # the changelog-window adapter answers the same uniform grammar as the new leaves
+                "$BIN" resolve --root /tmp/fx --source 'changelog-window:2026.274' > /tmp/fx-spec.json
+                grep -q 'alpha@2026.280.0704' /tmp/fx-spec.json
+                # a pattern that matches nothing, and a word outside the vocabulary, are both REFUSED
+                if "$BIN" resolve --root "$R" --source 'glob:alpha@HEAD:src/**/*.rs' >/dev/null 2>&1; then
+                  echo "the glob leaf accepted a pattern that matched nothing" >&2; exit 1
+                fi
+                if "$BIN" resolve --root "$R" --source 'telepathy:x' >/dev/null 2>&1; then
+                  echo "an unknown resolver word was accepted" >&2; exit 1
+                fi
+            - check: the git-log leaf runs against a REAL repository inside the image
+              id: desk-cli-git-log
+              context: [runtime]
+              exit_status: 0
+              run_as: "${USER}"
+              command: |
+                set -eu
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                R=/tmp/rx
+                cd "$R/alpha"
+                git init -q .
+                git -c user.name=desk -c user.email=desk@example.invalid add README.md src
+                git -c user.name=desk -c user.email=desk@example.invalid commit -q -m 'adds a new verb'
+                printf '// src c\npackage alpha\n' > src/c.go
+                git -c user.name=desk -c user.email=desk@example.invalid add src/c.go
+                git -c user.name=desk -c user.email=desk@example.invalid commit -q -m 'the second landing'
+                "$BIN" resolve --root "$R" --source 'git-log:alpha@HEAD~1..HEAD:src' > /tmp/rx-git.json
+                grep -q '"title": "the second landing"' /tmp/rx-git.json
+                grep -q 'git-log:alpha@' /tmp/rx-git.json
+                test "$(grep -c '"digest"' /tmp/rx-git.json)" -eq 1
+                # a range with no commits is refused rather than answered with an empty set
+                if "$BIN" resolve --root "$R" --source 'git-log:alpha@HEAD..HEAD:src' >/dev/null 2>&1; then
+                  echo "the git-log leaf accepted an empty range" >&2; exit 1
+                fi
+            - check: the issues and prs leaves query the LIVE GitHub API (a rate limit or an absent network
+              # is SKIPPED VISIBLY -- never answered from a fixture, R7a)
+              id: desk-cli-github-leaves
+              context: [runtime]
+              exit_status: 0
+              run_as: "${USER}"
+              command: |
+                set -eu
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                live() {
+                  if "$BIN" resolve --root /tmp/rx --source "$1" > /tmp/rx-gh.json 2>/tmp/rx-gh.err; then
+                    grep -q '"digest"' /tmp/rx-gh.json
+                    echo "live: $1 -> $(grep -c '"digest"' /tmp/rx-gh.json) source(s)"
+                  elif grep -qiE 'rate limit|no such host|network is unreachable|connection refused|timeout|TLS' /tmp/rx-gh.err; then
+                    echo "skip: $1 -- $(head -1 /tmp/rx-gh.err)"
+                  else
+                    cat /tmp/rx-gh.err >&2; exit 1
+                  fi
+                }
+                live 'issues:opencharly/opencharly?state=all&limit=3'
+                live 'prs:opencharly/plugin-generate-podcast?merged-since=2026-10-01&limit=2'
+                # a repository that does not exist is a NAMED refusal, not an empty answer
+                if "$BIN" resolve --root /tmp/rx --source 'issues:opencharly/no-such-repo-xyz?state=all' >/dev/null 2>&1; then
+                  echo "the issues leaf answered for a repository that does not exist" >&2; exit 1
+                fi
+            - check: the validate leaf proves a verbatim quote and REFUSES a fabricated one (the
+              # anti-fabrication gate, and the writing stage's typed-outputs gate)
+              id: desk-cli-validate
+              context: [runtime]
+              exit_status: 0
+              run_as: "${USER}"
+              command: |
+                set -eu
+                BIN=$(ls -1 /usr/local/lib/charly/plugins/*generate-podcast* 2>/dev/null | grep -v '\.providers' | head -1)
+                cat > /tmp/rx-out.json <<'JSON'
+                {
+                  "script": "# the episode\nCONCH: a verb landed\n",
+                  "sources": [{"claim_id": "c1", "source_id": "file:alpha@HEAD:README.md", "quote": "alpha adds a new verb"}],
+                  "coverage": {"selected": 1, "skipped": 6, "repos_scanned": 2, "repos_used": 1},
+                  "gaps": []
+                }
+                JSON
+                "$BIN" validate --outputs /tmp/rx-out.json --bundle /tmp/rx-bundle.json
+                sed 's/alpha adds a new verb/we made agents unstoppable/' /tmp/rx-out.json > /tmp/rx-fab.json
+                if "$BIN" validate --outputs /tmp/rx-fab.json --bundle /tmp/rx-bundle.json >/dev/null 2>&1; then
+                  echo "validate accepted a quote that appears nowhere in the cited source" >&2; exit 1
+                fi
+                # and the emitter's OWN input gate refuses an episode citing a source outside the bundle
+                cat > /tmp/rx-ep.json <<'JSON'
+                {
+                  "front_matter": {
+                    "episode": "rx-probe", "topic": "a verb landed", "profile": "news-desk",
+                    "cutoff": "2026.274",
+                    "cast": {"CONCH": {"sid": 1, "voice": "af_bella"}, "TEMPER": {"sid": 6, "voice": "am_michael"}},
+                    "sources": 7,
+                    "coverage": {"selected": 1, "skipped": 6, "repos_scanned": 2, "repos_used": 1},
+                    "gaps": []
+                  },
+                  "cold_open": "a verb landed",
+                  "segments": [
+                    {"title": "s1", "mechanism": "m", "receipt": "alpha adds a new verb", "receipt_source": "file:alpha@HEAD:README.md", "unlock": "u", "honest_limit": "l", "comic_beat": "c"},
+                    {"title": "s2", "mechanism": "m", "receipt": "alpha adds a new verb", "receipt_source": "file:alpha@HEAD:README.md", "unlock": "u", "honest_limit": "l", "comic_beat": "c"},
+                    {"title": "s3", "mechanism": "m", "receipt": "alpha adds a new verb", "receipt_source": "file:alpha@HEAD:README.md", "unlock": "u", "honest_limit": "l", "comic_beat": "c"}
+                  ],
+                  "pinch": {"claim": "the consequence", "citation": "file:alpha@HEAD:README.md"},
+                  "close": "the receipts are in the front matter"
+                }
+                JSON
+                "$BIN" emit --episode /tmp/rx-ep.json --bundle /tmp/rx-bundle.json \
+                  --enthusiast CONCH --anchor TEMPER --cues > /tmp/rx-cues.txt
+                grep -q 'alpha adds a new verb \[file:alpha@HEAD:README.md\]' /tmp/rx-cues.txt
+                sed 's#file:alpha@HEAD:README.md#file:alpha@HEAD:nope.md#' /tmp/rx-ep.json > /tmp/rx-ep-bad.json
+                if "$BIN" emit --episode /tmp/rx-ep-bad.json --bundle /tmp/rx-bundle.json \
+                     --enthusiast CONCH --anchor TEMPER >/dev/null 2>&1; then
+                  echo "the emitter's input gate let an episode cite a source outside the bundle" >&2; exit 1
+                fi

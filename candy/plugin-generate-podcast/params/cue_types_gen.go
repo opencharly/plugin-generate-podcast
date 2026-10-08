@@ -64,11 +64,13 @@ type SourceBundle struct {
 
 	Repos_with_entries int64 `json:"repos_with_entries"`
 
+	// At least one source, or the run is refused (§5.4). MEASURED: this needs the PREFIX-list form.
+	// `[...#Source]` alone accepts `[]`; `[...#Source] & [_, ...]` rejects it but INLINES an anonymous
+	// struct, so Go callers cannot pass []params.Source; and a hidden `_min: len(entries) >= 1` is a
+	// no-op -- the comparison evaluates to the boolean VALUE false, which CUE accepts, so nothing fails.
+	// `[#Source, ...#Source]` rejects `[]` AND generates `[]Source`.
 	Entries []Source `json:"entries"`
 
-	// MEASURED: `& [_, ...]` satisfies "at least one" but INLINES an anonymous struct at this field,
-	// so Go callers cannot pass []params.Source -- the same pitfall as the segments count. Length
-	// constraints belong in hidden len() fields.
 	Tag_gaps []TagGap `json:"tag_gaps"`
 }
 
@@ -119,6 +121,10 @@ type Episode struct {
 
 	Cold_open string `json:"cold_open"`
 
+	// The floor is THREE segments, in the prefix-list form (see source.cue's MEASURED note: a hidden
+	// `_min: len(segments) >= 3` is inert, and `[...#Segment] & [_, _, _]` destroys the Go element type).
+	// The CEILING of five cannot be expressed without an inline element type, so it is enforced in Go
+	// (Emit) -- a type-inexpressible remainder, guarded where the episode is actually consumed.
 	Segments []Segment `json:"segments"`
 
 	Pinch struct {
@@ -138,6 +144,30 @@ type Coverage struct {
 	Repos_scanned int64 `json:"repos_scanned"`
 
 	Repos_used int64 `json:"repos_used"`
+}
+
+// #Claim — one sentence of the script and the receipt under it. `quote` must appear VERBATIM in the
+// source named by `source_id`; that cross-reference is the one check a type cannot express, so the Go
+// gate in validate.go owns it (C4: the anti-fabrication gate).
+type Claim struct {
+	Claim_id string `json:"claim_id"`
+
+	Source_id string `json:"source_id"`
+
+	Quote string `json:"quote"`
+}
+
+// #TypedOutputs — the writing stage's output as ONE unit (§13.8): all four blocks are required, so a
+// missing block is a validation failure rather than a silent omission. `script` is emitted from
+// #Episode; `sources`/`coverage`/`gaps` are the provenance the episode publishes.
+type TypedOutputs struct {
+	Script string `json:"script"`
+
+	Sources []Claim `json:"sources"`
+
+	Coverage Coverage `json:"coverage"`
+
+	Gaps []string `json:"gaps"`
 }
 
 type RenderManifest struct {

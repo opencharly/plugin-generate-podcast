@@ -72,13 +72,33 @@ func TestEmitRejectsUncastRole(t *testing.T) {
 	}
 }
 
-// Fails without the guard: the schema's `[_, _, _]` cannot be expressed in Go, so an empty episode must
-// be refused here rather than emitting a plausible-looking empty script.
+// Fails without the guard: the schema enforces the segment FLOOR in its list type, but the Go type
+// `[]Segment` accepts any count — including the ceiling's overflow, which no CUE construct expresses
+// without inlining an anonymous element type.
 func TestEmitRejectsEmptyEpisode(t *testing.T) {
 	ep := sample()
 	ep.Segments = nil
 	if _, _, err := Emit(ep, Cast{Enthusiast: "CONCH", Anchor: "TEMPER"}); err == nil {
 		t.Fatal("expected an error for an episode with no segments")
+	}
+	ep = sample()
+	ep.Segments = ep.Segments[:2]
+	if _, _, err := Emit(ep, Cast{Enthusiast: "CONCH", Anchor: "TEMPER"}); err == nil {
+		t.Fatal("expected an error for an episode with two segments")
+	}
+	ep = sample()
+	for i := 0; i < 3; i++ { // six in total: past the ceiling
+		ep.Segments = append(ep.Segments, ep.Segments[0])
+	}
+	if _, _, err := Emit(ep, Cast{Enthusiast: "CONCH", Anchor: "TEMPER"}); err == nil {
+		t.Fatal("expected an error for an episode past the five-segment ceiling")
+	}
+	ep = sample()
+	for i := 0; i < 2; i++ { // five in total: the ceiling itself is allowed
+		ep.Segments = append(ep.Segments, ep.Segments[0])
+	}
+	if _, _, err := Emit(ep, Cast{Enthusiast: "CONCH", Anchor: "TEMPER"}); err != nil {
+		t.Fatalf("five segments must be allowed: %v", err)
 	}
 }
 
