@@ -1,4 +1,97 @@
-# Root project manifest: discovery only, so the candy is scanned and the CUE schema gate applies.
+# Root project manifest for the plugin repo.
+#
+# `base:` takes a BARE box name from this project's FLAT namespace, so the cachyos box must be
+# discoverable flat -- while the builders that box references are NAMESPACED (`arch.arch-builder`), so
+# the `arch` namespace must exist too. Both, or neither works. See opencharly/marketplace#433.
+# A STANDALONE project needs its OWN defaults: an umbrella box omits `build:` precisely because the
+# umbrella supplies it, and `charly box validate` does NOT catch the omission (it never resolves the
+# image) -- the build does, one step in. Measured here after a green validate:
+#   charly: error: command "build": image desk-schema: build: field required (set in image, base, or defaults)
+defaults:
+    platform:
+        - linux/amd64
+    # MEASURED ROOT CAUSE: without an explicit registry, the deploy emits
+    # `Image=ghcr.io/opencharly/<box>:<deploy>-<calver>` -- a REMOTE ref -- while the local
+    # build tags `localhost/<box>:<tag>`. The container then tries to PULL a tag that was never
+    # pushed (403), fails with status=125, hits start-limit-hit, and the bed's start phase
+    # reports only `command exited 1`. The umbrella's own defaults declare the registry, so its
+    # boxes never hit this; a standalone project must declare where its images actually live.
+    registry: localhost
+    tag: auto
+    build:
+        - rpm
+    merge:
+        auto: false
+        max_mb: 128
+
+import:
+    - arch: '@github.com/opencharly/distro-arch:v2026.274.1256'
+    - cachyos: '@github.com/opencharly/distro-cachyos:v2026.281.1001'
+
 discover:
     - path: candy
       recursive: true
+
+desk-schema:
+    candy:
+        description: |-
+            The desk's schemas plus the CUE toolchain, so the R10 bed can validate the very shapes this
+            repo ships. A box rather than a bare candy because a bed deploys an IMAGE.
+        # `base:` accepts a NAMESPACE-QUALIFIED box name -- `cachyos.cachyos` resolves through the
+        # `cachyos:` import above. Measured alternatives that do NOT work: a bare short name
+        # (`short-name "cachyos" did not resolve`), and a `@github...` ref (`invalid base image
+        # specification`). A fully-qualified registry ref does work (`quay.io/fedora/fedora:43` in
+        # pod-herdr/box/herdr/charly.yml:8).
+        base: cachyos.cachyos
+        candy:
+            - cue
+            - plugin-generate-podcast
+            # A CHECK BED needs the pod to STAY UP for the live checks: without a long-running
+            # service the container exits and `start` fails (measured: start FAIL, exit 1, while
+            # check-image/deploy-add/config had all passed). The org's keepalive candy is for this.
+            - '@github.com/opencharly/pod-check-keepalive:v2026.274.0621'
+
+check-desk-schema-pod:
+    pod:
+        image: desk-schema
+        disposable: true
+        lifecycle: dev
+        plan:
+            - check: the four schema files ship in the image
+              id: desk-schema-present
+              context: [runtime]
+              exit_status: 0
+              command: test "$(ls -1 ${HOME}/.local/share/desk-schema/*.cue | wc -l)" -eq 4
+            - check: the schemas are valid CUE
+              id: desk-schema-vet
+              context: [runtime]
+              exit_status: 0
+              command: cd ${HOME}/.local/share/desk-schema && cue vet ./...
+            - check: exactly one package across the schema directory (CUE allows no more)
+              id: desk-schema-one-package
+              context: [runtime]
+              exit_status: 0
+              command: test "$(grep -h '^package ' ${HOME}/.local/share/desk-schema/*.cue | sort -u | wc -l)" -eq 1
+            - check: the schema CONSTRAINS -- an episode missing a segment's honest_limit must be REJECTED
+              id: desk-schema-rejects-incomplete
+              context: [runtime]
+              exit_status: 0
+              command: |
+                set -eu
+                d="$(mktemp -d)"
+                cp ${HOME}/.local/share/desk-schema/*.cue "$d/"
+                cp ${HOME}/.local/share/desk-schema/testdata/invalid.cue "$d/sample.cue"
+                cd "$d"
+                if cue vet ./... >/dev/null 2>&1; then
+                  echo "the schema ACCEPTED an episode with no honest_limit -- it is too weak to be a gate"; exit 1
+                fi
+            - check: the ACCEPT arm still validates (the reject arm above must not be passing for the wrong reason)
+              id: desk-schema-accepts-valid
+              context: [runtime]
+              exit_status: 0
+              command: |
+                set -eu
+                d="$(mktemp -d)"
+                cp ${HOME}/.local/share/desk-schema/*.cue "$d/"
+                cp ${HOME}/.local/share/desk-schema/testdata/valid.cue "$d/sample.cue"
+                cd "$d" && cue vet ./...

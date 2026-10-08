@@ -20,6 +20,13 @@ plugin-generate-podcast:
         var:
             DESK_SCHEMA_DIR: schema
         plan:
+            - run: mkdir=${HOME}/.local/share/desk-schema
+              mkdir: "${HOME}/.local/share/desk-schema"
+              run_as: "${USER}"
+            - run: copy the schemas so a consumer image can validate against the same shapes
+              run_as: "${USER}"
+              copy: schema
+              to: "${HOME}/.local/share/desk-schema"
             - check: the four schema files are present
               id: desk-schema-files
               file:
