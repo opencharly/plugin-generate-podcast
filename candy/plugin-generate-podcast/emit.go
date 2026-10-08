@@ -21,8 +21,10 @@ type Cast struct {
 	Anchor     string // speaks the receipt and the honest limit; wins every factual exchange
 }
 
-// The format's segment bounds. The floor is ALSO in the schema's list type; the ceiling is only here
-// (see Emit's comment), and both are stated once so the two cannot drift into disagreeing numbers.
+// The format's segment bounds. The FLOOR is stated twice by design -- in the schema's list type (the
+// authority for anything that went through `cue vet`) and here (the guard for a Go/CLI caller that did
+// not) -- while the ceiling can only live here; Emit's comment says why, and it is the reason this pair
+// exists as named constants rather than as literals at the comparison.
 const (
 	minSegments = 3
 	maxSegments = 5

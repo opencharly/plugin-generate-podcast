@@ -545,12 +545,14 @@ func resolvePRs(s Spec, d Deps, b *params.SourceBundle) error {
 				continue
 			}
 		}
-		body := strings.TrimSpace(fmt.Sprintf("# %s [#%d]\n\n%s\n\n+%d/-%d across %d file(s), merged %s (%s)\n",
-			it.Title, it.Number, detail.Body, detail.Additions, detail.Deletions, detail.Changed_files,
-			detail.Merged_at, detail.Html_url))
-		if body == "" {
+		// the reachable emptiness check is on the DATA: the Sprintf below always emits literal text, so a
+		// post-format `body == ""` arm could never fire (B14(a) on #6, round 1)
+		if strings.TrimSpace(it.Title+detail.Body) == "" {
 			continue
 		}
+		body := fmt.Sprintf("# %s [#%d]\n\n%s\n\n+%d/-%d across %d file(s), merged %s (%s)\n",
+			it.Title, it.Number, detail.Body, detail.Additions, detail.Deletions, detail.Changed_files,
+			detail.Merged_at, detail.Html_url)
 		src := newSource("prs", "prs:"+repo+"#"+strconv.Itoa(it.Number), "prs:"+s.Ref, repo, "", []byte(body))
 		src.Title = it.Title
 		b.Entries = append(b.Entries, src)
