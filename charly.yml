@@ -17,6 +17,21 @@ defaults:
     # pushed (403), fails with status=125, hits start-limit-hit, and the bed's start phase
     # reports only `command exited 1`. The umbrella's own defaults declare the registry, so its
     # boxes never hit this; a standalone project must declare where its images actually live.
+    # The registry the BUILD tags images with AND the deploy resolves them FROM. They MUST agree.
+    # MEASURED, three values, three different failures:
+    #   undeclared            -> deploy emitted ghcr.io/... while the build tagged localhost/... -> the
+    #                            container PULLED a never-pushed tag -> 403 -> exit 125 -> start-limit-hit
+    #   ghcr.io/opencharly    -> warnings gone, but deploy-add now fails at `deploy-name alias tag`
+    #                            (podman exit 125) -- undiagnosed, and a gate that cannot run is worse than
+    #                            a noisy one
+    #   localhost             -> the WHOLE gate passes, seven phases, changed paths executing live. Cost:
+    #                            podman probes the `localhost` registry HOST for an image that is present in
+    #                            the local store, gets connection-refused, retries 3x, and falls back.
+    #                            PER-WARNING RCA (R1): the probe asks a registry that this project does not
+    #                            run and does not need -- the tag agreement above is the property that
+    #                            matters, no network resource is involved, and the probe's failure is the
+    #                            expected outcome on any host without a local registry. It is a probe cost,
+    #                            not a defect in the artifact; the alternative value breaks the deploy.
     registry: localhost
     tag: auto
     build:
