@@ -1,0 +1,28 @@
+feat(schema): the four CUE schemas, their two-arm fixture, generated params, and CI gate
+
+WIP -- not landable until cmd/serve exists (see below).
+
+The desk's shapes as CUE definitions -- one package (`podcast`), four files: the run config
+(#DeskConfig), the resolver contract (#Source/#SourceBundle/#TagGap), the episode
+(#Episode/#Segment/#Beat/#Unlock/#HonestLimit/#Coverage) and the render manifest
+(#RenderManifest). Go types are GENERATED (params/cue_types_gen.go, "DO NOT EDIT"), never
+hand-transcribed.
+
+The episode schema is load-bearing: the script is DATA, and the markdown plus the renderer's
+cue lines are emitted from a validated #Episode, so a malformed episode cannot be constructed.
+It is proven to CONSTRAIN rather than merely parse -- schema/testdata/ carries a two-arm
+fixture whose accept arm validates and whose reject arm (the same episode with one segment's
+honest_limit removed) is refused.
+
+Measured with cue v0.16.1 from the `cue` candy inside a charly pod:
+  cue vet            accept VALID_ACCEPTED / reject BAD_ARM_REJECTED
+  cue exp gengotypes regenerated sha256 == committed sha256 (idempotent)
+  chally box validate OK -- 1 candy, 0 warnings
+
+MEASURED RULE: a candy must carry an install surface -- packages/root.yml/pixi.toml/..., a
+`candy:` field, an external_builder:, or a `plugin:` block. For a plugin repo the plugin block
+IS that surface, so the candy cannot exist without it and the declaration and its provider land
+together. cmd/serve + the provider/leaves are the remaining piece; this commit is the schema
+half of one change, and it is not to be pushed on its own.
+
+Assisted-by: DSH DeepSeek V4.1 Flash (analysed on a live system)

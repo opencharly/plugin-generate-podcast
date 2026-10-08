@@ -1,0 +1,4 @@
+# Root project manifest: discovery only, so the candy is scanned and the CUE schema gate applies.
+discover:
+    - path: candy
+      recursive: true
