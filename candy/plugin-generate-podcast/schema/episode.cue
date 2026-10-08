@@ -26,7 +26,9 @@ package podcast
 		gaps!:     [...string] // may be empty ONLY if the bundle is fully covered
 	}
 	cold_open!: string & !=""
-	segments!:  [...#Segment] & [_, _, _] // 3..5, enforced here rather than by an if-statement
+	segments!:  [...#Segment] // the ELEMENT type lives here and survives generation
+	_min:      len(segments) >= 3
+	_max:      len(segments) <= 5
 	pinch!:     {claim!: string & !="", citation!: string} // C3: no consequence without a mechanism
 	close!:     string & !="" // points at the receipts, never at the listener's opinion
 }

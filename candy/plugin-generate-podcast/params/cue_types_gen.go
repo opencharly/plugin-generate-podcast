@@ -136,7 +136,7 @@ type Episode struct {
 
 	Cold_open string `json:"cold_open"`
 
-	Segments []any/* CUE closed list */ `json:"segments"`
+	Segments []Segment `json:"segments"`
 
 	Pinch struct {
 		Claim string `json:"claim"`

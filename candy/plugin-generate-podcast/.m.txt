@@ -1,0 +1,31 @@
+feat(emit): the episode emitter, and a schema fix that restored its type safety
+
+The emitter turns a VALIDATED #Episode into the episode markdown and the cue lines podcast-render
+consumes, so the script a listener reads and the audio they hear are the same content in two
+substrates -- and a malformed episode cannot reach the synthesiser because it cannot be constructed.
+
+It consumes the GENERATED types (params.Episode/params.Segment) rather than a hand-written shape,
+which is also the proof those generated types are usable.
+
+The cast is ROLES, not names: Cast{Enthusiast, Anchor} are the caller's, and the emitter refuses a
+role that is not in the episode's cast. Nothing here hardcodes a host name -- the news desk's own
+pair (CONCH/TEMPER) is one profile's choice.
+
+Two guards cover what the generated type cannot express: both cast roles must be named and present
+in the cast, and the episode must have at least one segment. The required fields, the beats and the
+3..5 count stay the SCHEMA's job -- re-checking them in Go would be a hand-transcribed second copy.
+
+SCHEMA FIX, found by compiling against it: `segments!: [...#Segment] & [_, _, _]` satisfies the count
+but DEGRADES the generated element type to `[]any` (the generated file read
+`Segments []any/* CUE closed list */`), silently losing #Segment on the Go side. Length constraints
+now live in hidden fields -- `_min: len(segments) >= 3` / `_max: len(segments) <= 5` -- and the
+regenerated type is `Segments []Segment`. The `!` was deliberately dropped from those hidden fields:
+a required hidden field would demand the author supply it.
+
+Measured, in-pod with cue v0.16.1: accept arm ARM_ACCEPT_OK, reject arm ARM_REJECT_OK.
+Locally: go test ./... ok (4 tests; three fail without their check), gofmt clean, go vet clean.
+
+WIP: cmd/serve + the provider leaves are still owed -- the plugin: block declares
+command:generate-podcast and nothing serves that word yet, so this is not pushed on its own.
+
+Assisted-by: DSH DeepSeek V4.1 Flash (analysed on a live system)
