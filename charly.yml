@@ -11,27 +11,25 @@
 defaults:
     platform:
         - linux/amd64
-    # MEASURED ROOT CAUSE: without an explicit registry, the deploy emits
-    # `Image=ghcr.io/opencharly/<box>:<deploy>-<calver>` -- a REMOTE ref -- while the local
-    # build tags `localhost/<box>:<tag>`. The container then tries to PULL a tag that was never
-    # pushed (403), fails with status=125, hits start-limit-hit, and the bed's start phase
-    # reports only `command exited 1`. The umbrella's own defaults declare the registry, so its
-    # boxes never hit this; a standalone project must declare where its images actually live.
-    # The registry the BUILD tags images with AND the deploy resolves them FROM. They MUST agree.
-    # MEASURED, three values, three different failures:
-    #   undeclared            -> deploy emitted ghcr.io/... while the build tagged localhost/... -> the
-    #                            container PULLED a never-pushed tag -> 403 -> exit 125 -> start-limit-hit
-    #   ghcr.io/opencharly    -> warnings gone, but deploy-add now fails at `deploy-name alias tag`
-    #                            (podman exit 125) -- undiagnosed, and a gate that cannot run is worse than
-    #                            a noisy one
-    #   localhost             -> the WHOLE gate passes, seven phases, changed paths executing live. Cost:
-    #                            podman probes the `localhost` registry HOST for an image that is present in
-    #                            the local store, gets connection-refused, retries 3x, and falls back.
-    #                            PER-WARNING RCA (R1): the probe asks a registry that this project does not
-    #                            run and does not need -- the tag agreement above is the property that
-    #                            matters, no network resource is involved, and the probe's failure is the
-    #                            expected outcome on any host without a local registry. It is a probe cost,
-    #                            not a defect in the artifact; the alternative value breaks the deploy.
+    # `defaults.registry` is the prefix the BUILD tags images with AND the deploy resolves them FROM --
+    # they MUST agree. The deploy tags a deploy-name alias OF THE BASE IMAGE the build reported
+    # (plugin-deploy-pod/lifecycle.go:331), so that image must exist under the name the deploy resolves.
+    # This is the umbrella's own value.
+    #
+    # MEASURED across the values, including two of my own claims that were wrong in opposite directions:
+    #   undeclared  -> the deploy emitted ghcr.io/... while the build tagged localhost/... : the container
+    #                  PULLED a never-pushed tag -> 403 -> exit 125 -> start-limit-hit, and `start`
+    #                  reported only `command exited 1`.
+    #   localhost   -> the gate passed, but podman probed the `localhost` registry HOST (connection refused,
+    #                  retried 1/3..3/3, twice): six COUNTED warnings. I kept them and called them "a probe
+    #                  cost", justifying that with a `deploy-name alias tag` failure I had wrongly blamed on
+    #                  the value below. Both were my errors. A warning I introduce gets removed, never
+    #                  RCA'd into permanence -- an RCA is not a licence to keep it.
+    #   ghcr (this) -> `Successfully tagged ghcr.io/opencharly/desk-schema:<calver>`, i.e. the prefix DOES
+    #                  govern the FINAL box image tag (my other claim, also wrong), and the alias then
+    #                  succeeds. That earlier alias failure was ORDERING: it ran straight after a build made
+    #                  under `localhost`, so no ghcr-named image existed for the alias to tag.
+    # On this value the change-class bed reports `allowlisted=1` and NO counted warnings.
     registry: ghcr.io/opencharly
     tag: auto
     build:
