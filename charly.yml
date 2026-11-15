@@ -39,8 +39,8 @@ defaults:
         max_mb: 128
 
 import:
-    - arch: '@github.com/opencharly/distro-arch:v2026.274.1256'
-    - cachyos: '@github.com/opencharly/distro-cachyos:v2026.281.1001'
+    - arch: '@github.com/opencharly/distro-arch:v2026.314.0703'
+    - cachyos: '@github.com/opencharly/distro-cachyos:v2026.319.1138'
 
 discover:
     - path: candy
@@ -71,7 +71,7 @@ desk-schema:
             # A CHECK BED needs the pod to STAY UP for the live checks: without a long-running
             # service the container exits and `start` fails (measured: start FAIL, exit 1, while
             # check-image/deploy-add/config had all passed). The org's keepalive candy is for this.
-            - '@github.com/opencharly/pod-check-keepalive:v2026.274.0621'
+            - '@github.com/opencharly/pod-check-keepalive:v2026.314.0716'
 
 check-desk-schema-pod:
     pod:
